@@ -1,0 +1,6 @@
+__pycache__/
+testing/
+.vscode/
+.pixi/
+.pytest_cache/
+LICENSE
