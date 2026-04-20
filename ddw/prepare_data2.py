@@ -90,6 +90,12 @@ def prepare_data(
             help="Where to save the subtomograms. If not provided, the subtomograms will be saved to '{project_dir}/subtomos'."
         ),
     ] = None,
+    tomo_dir: Annotated[
+        Optional[Path],
+        typer.Option(
+            help="Where to save the initial tomograms. If not provided, the tomograms will be saved to '{project_dir}/tomos'."
+        ),
+    ] = None,
     project_dir: Annotated[
         Optional[Path],
         typer.Option(
@@ -120,7 +126,8 @@ def prepare_data(
     Extract square sub-tomograms that are used to generate inputs and targets for model fitting. Typically the first command to run.
     """
     # create output directories
-    fitting_subtomo_dir, val_subtomo_dir = setup_subtomo_dir(
+    tomo_dir, fitting_subtomo_dir, val_subtomo_dir = setup_tomo_dir(
+        tomo_dir= tomo_dir,
         subtomo_dir=subtomo_dir,
         project_dir=project_dir,
         overwrite=overwrite,
@@ -255,7 +262,28 @@ def prepare_data(
         )
 
 
-def setup_subtomo_dir(subtomo_dir, project_dir, overwrite, verbose):
+def setup_tomo_dir(tomo_dir, subtomo_dir, project_dir, overwrite, verbose):
+    """
+    Sets up and manages directories for storing tomogram and subtomogram data
+    """
+    if tomo_dir is None:
+        if project_dir is not None:
+            tomo_dir = f"{project_dir}/tomos"
+        else:
+            raise ValueError(
+                "tomo_dir must be provided if project_dir is not provided"
+            )
+    if verbose:
+        print(f"Saving all tomogram tensors to '{tomo_dir}'.")
+    if os.path.exists(tomo_dir):
+        if overwrite == True:
+            if verbose:
+                print(f"Removing existing tomogram directory '{tomo_dir}'.")
+            shutil.rmtree(tomo_dir)
+        else:
+            raise ValueError(
+                f"subtomo_dir '{tomo_dir}' already exists. Set 'overwrite' to 'True' to remove it."
+            )
     if subtomo_dir is None:
         if project_dir is not None:
             subtomo_dir = f"{project_dir}/subtomos"
@@ -269,7 +297,7 @@ def setup_subtomo_dir(subtomo_dir, project_dir, overwrite, verbose):
         if overwrite == True:
             if verbose:
                 print(f"Removing existing subtomogram directory '{subtomo_dir}'.")
-                shutil.rmtree(subtomo_dir)
+            shutil.rmtree(subtomo_dir)
         else:
             raise ValueError(
                 f"subtomo_dir '{subtomo_dir}' already exists. Set 'overwrite' to 'True' to remove it."
@@ -277,16 +305,19 @@ def setup_subtomo_dir(subtomo_dir, project_dir, overwrite, verbose):
 
     fitting_subtomo_dir = f"{subtomo_dir}/fitting_subtomos"
     val_subtomo_dir = f"{subtomo_dir}/val_subtomos"
+
+    os.makedirs(f"{tomo_dir}/tomo0/", exist_ok=False)
+    os.makedirs(f"{tomo_dir}/tomo1/", exist_ok=False)
     os.makedirs(f"{fitting_subtomo_dir}/subtomo0/", exist_ok=False)
     os.makedirs(f"{fitting_subtomo_dir}/subtomo1/", exist_ok=False)
     os.makedirs(f"{val_subtomo_dir}/subtomo0/", exist_ok=False)
     os.makedirs(f"{val_subtomo_dir}/subtomo1/", exist_ok=False)
-    return fitting_subtomo_dir, val_subtomo_dir
+    return tomo_dir, fitting_subtomo_dir, val_subtomo_dir
 
 # Exemple d'utilisation :
-data = prepare_data(tomo0_files=["/home/nathan/Downloads/Inverse FFT of 1105.tif"],
-                    tomo1_files= ["/home/nathan/Downloads/Inverse FFT of 1105 (1).tif"],
-                    subtomo_size=70,
+data = prepare_data(tomo0_files=["/home/nathan/Desktop/Ange-Louis/Results/carré.tif"],
+                    tomo1_files= ["/home/nathan/Desktop/Ange-Louis/Results/carré.tif"],
+                    subtomo_size=92,
                     project_dir= "testing",
                     overwrite= True)
 

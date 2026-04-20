@@ -216,8 +216,8 @@ def _refine_single_tomogram(
     batch_size=1,
     pbar_desc="Refining tomogram",
 ):
-
-    tomo = load_data(tomo_file).float()#.to(lightning_model.device)
+    # Probleme liste
+    tomo = load_data(tomo_file).float()#.to(lightning_model.device) 
     # apply missing wedge mask here to be more consistent with data during model fitting
     mw_mask = get_missing_wedge_mask(tomo.shape, mw_angle, device=tomo.device)
     tomo = apply_fourier_mask_to_tomo(tomo, mw_mask)
@@ -263,7 +263,7 @@ refine_tomogram(
     tomo0_files=["/home/nathan/Downloads/Inverse FFT of 1105.tif"],
     tomo1_files= ["/home/nathan/Downloads/Inverse FFT of 1105 (1).tif"],
     model_checkpoint_file= "/home/nathan/Desktop/Ange-Louis/DDW2/testing/logs/version_30/checkpoints/fitting_loss/epoch=853-fitting_loss=21.08032.ckpt",
-    subtomo_size=80,
+    subtomo_size=92,
     mw_angle=50,
     project_dir= "testing",
     num_workers=10
