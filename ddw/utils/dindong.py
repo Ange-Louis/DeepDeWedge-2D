@@ -1,21 +1,24 @@
 import os
+from pathlib import Path
 import shutil
 import torch
 import mrcfile
 import numpy as np
 from PIL import Image
 
-def collect_data(image_file, tomo_dir):
+def collect_data(image_file, output_dir):
     try:
         with mrcfile.open(image_file, permissive=True) as mrc:
             try:
                 data = torch.tensor(mrc.data)
             except TypeError:
                 data = torch.tensor(mrc.data.astype(float))
-            print(data.shape())
+            print(data.shape)
 
-            #for y in range(data.shape[1]):
-                #torch.save(data[:, y, :], f"{tomo_dir}/{os.path.basename(image_file)}_({y}).pt")
+            file_name = Path(image_file).stem
+            for y in range(data.shape[1]):
+                torch.save(data[:, y, :].clone(), f"{output_dir}/{file_name}_{y}.pt")
+                print(f"Sauvegarde du fichier '{file_name}_({y}).pt'. Taille : {os.path.getsize(f"{output_dir}/{file_name}_{y}.pt")}")
 
     except: 
         try:
@@ -24,7 +27,9 @@ def collect_data(image_file, tomo_dir):
             data = np.array(img)
             data = torch.tensor(data)
 
-            #torch.save(data, f"{tomo_dir}/{os.path.basename(image_file)}.pt")
+            file_name =  Path(image_file).stem
+            torch.save(data.clone(), f"{output_dir}/{file_name}.pt")
+            print(f"Sauvegarde du fichier '{file_name}.pt'. Taille : {os.path.getsize(file_name)}")
             
         except Exception as e:
             raise ValueError(f"Error: {e}")
@@ -64,5 +69,5 @@ tomo_dir = setup_tomo_dir(project_dir= "testing")
 
 for tomo0_file in tomo0_files:
 	
-    collect_data(tomo0_file, tomo_dir= tomo_dir)
+    collect_data(tomo0_file, output_dir= f"{tomo_dir}/tomo0")
 
