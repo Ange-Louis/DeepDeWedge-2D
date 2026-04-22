@@ -146,16 +146,28 @@ def prepare_data(
             )
     # prepare 3d files for 2D correction, collect data from tomo files
     for (tomo0_file, tomo1_file, mask_file) in zip(tomo0_files, tomo1_files, mask_files):
-        collect_data(image_file= tomo0_file, output_dir= f"{data_dir}/tomo0")
+        collect_data(
+            image_file= tomo0_file,
+            output_dir= f"{data_dir}/tomo0",
+            verbose=verbose
+        )
 
-        collect_data(image_file= tomo1_file, output_dir= f"{data_dir}/tomo1")
+        collect_data(
+            image_file= tomo1_file,
+            output_dir= f"{data_dir}/tomo1",
+            verbose=verbose
+        )
 
         if mask_file is not None:
-            collect_data(image_file= mask_file, output_dir= f"{data_dir}/mask")
+            collect_data(
+                image_file= mask_file,
+                output_dir= f"{data_dir}/mask",
+                verbose=verbose
+        )
     
     # actual subtomogram extraction
-    tomo0_tensorfiles = Path(f"/home/nathan/Desktop/Ange-Louis/DDW2/testing/tomos/tomo0").glob("*.pt")
-    tomo1_tensorfiles = Path(f"/home/nathan/Desktop/Ange-Louis/DDW2/testing/tomos/tomo1").glob("*.pt")
+    tomo0_tensorfiles = Path(f"{data_dir}/tomo0").rglob("*.pt")
+    tomo1_tensorfiles = Path(f"{data_dir}/tomo1").rglob("*.pt")
     if verbose:
         print(f"Starting subtomogram extraction from {len(tomo0_files)} tomogram(s).")
     fitting_counter, val_counter = 0, 0
@@ -245,10 +257,10 @@ def prepare_data(
 
         for idx in sorted(fitting_ids):
             torch.save(
-                subtomos0[idx].clone(), f"{fitting_subtomo_dir}/subtomo0/{fitting_counter}.pt"
+                subtomos0[idx].clone(), f"{fitting_subtomo_dir}/subtomo0//{fitting_counter}.pt"
             )
             torch.save(
-                subtomos1[idx].clone(), f"{fitting_subtomo_dir}/subtomo1/{fitting_counter}.pt"
+                subtomos1[idx].clone(), f"{fitting_subtomo_dir}/subtomo1//{fitting_counter}.pt"
             )
             fitting_counter += 1
 
