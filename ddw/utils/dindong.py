@@ -141,60 +141,78 @@ def prepare_data(
 
     if verbose:
         print(f"Starting subtomogram extraction from {len(tomo0_files)} tomogram(s).")
-    
+
+    # --- CORRECTION 1: Gérer les dossiers globaux AVANT la boucle pour éviter de les effacer à chaque itération ---
+    if data_dir is None:
+        if project_dir is not None:
+            data_dir = Path(project_dir) / "tomos"
+        else:
+            raise ValueError("data_dir must be provided if project_dir is not provided")
+
+    if subtomo_dir is None:
+        if project_dir is not None:
+            subtomo_dir = Path(project_dir) / "subtomos"
+        else:
+            raise ValueError("subtomo_dir must be provided if project_dir is not provided")
+
+    for d in [data_dir, subtomo_dir]:
+        if os.path.exists(d):
+            if overwrite:
+                if verbose:
+                    print(f"Removing existing directory '{d}'.")
+                shutil.rmtree(d)
+            else:
+                raise ValueError(
+                    f"Directory '{d}' already exists. Set 'overwrite=True' to remove it."
+                )
+        os.makedirs(d, exist_ok=True)
+    # -------------------------------------------------------------------------------------------------------------
+
     for (tomo0_file, tomo1_file, mask_file) in zip(tomo0_files, tomo1_files, mask_files):
-        # create output directories
-        tomo0_name = Path(tomo0_file).stem ; tomo1_name = Path(tomo1_file).stem
-        tomo0_dir, fitting_subtomo0_dir, val_subtomo0_dir,\
-             tomo1_dir, fitting_subtomo1_dir, val_subtomo1_dir = setup_tomo_dir(
-            data_dir= data_dir,
-            subtomo_dir=subtomo_dir,
-            project_dir=project_dir,
-            tomo0_name=tomo0_name,
-            tomo1_name=tomo1_name,
-            overwrite=overwrite,
-            verbose=verbose
-        )
         
+        tomo0_name = Path(tomo0_file).stem
+        tomo1_name = Path(tomo1_file).stem
+        
+        # create output directories specifically for these tomograms
+        tomo0_dir, fitting_subtomo0_dir, val_subtomo0_dir,\
+        tomo1_dir, fitting_subtomo1_dir, val_subtomo1_dir = setup_tomo_dir(
+            data_dir=data_dir,
+            subtomo_dir=subtomo_dir,
+            tomo0_name=tomo0_name,
+            tomo1_name=tomo1_name
+        )
 
         if mask_file is not None:
             mask_name = Path(mask_file).stem
-            mask_dir = f"{data_dir}/masks/{mask_name}"
-            os.makedirs(mask_dir, exist_ok= False)
+            mask_dir = Path(data_dir) / "masks" / mask_name
+            os.makedirs(mask_dir, exist_ok=True)
 
         # Collect data from tomogram files
         if verbose:
             print(f"Processing tomogram pairs: '{tomo0_name}' & '{tomo1_name}'")
 
-        collect_data(
-            image_file= tomo0_file,
-            output_dir= tomo0_dir
-        )
-
-        collect_data(
-            image_file= tomo1_file,
-            output_dir= tomo1_dir
-        )
+        collect_data(image_file=tomo0_file, output_dir=tomo0_dir)
+        collect_data(image_file=tomo1_file, output_dir=tomo1_dir)
 
         if mask_file is not None:
-            collect_data(
-                image_file= mask_file,
-                output_dir= mask_dir
-        )
+            collect_data(image_file=mask_file, output_dir=mask_dir)
     
         # actual subtomogram extraction
-        tomo0_tensorfiles = sorted(Path(f"{data_dir}/tomo0/{tomo0_name}").glob("*.pt"))
-        tomo1_tensorfiles = sorted(Path(f"{data_dir}/tomo1/{tomo1_name}").glob("*.pt"))
+        tomo0_tensorfiles = sorted(Path(tomo0_dir).glob("*.pt"))
+        tomo1_tensorfiles = sorted(Path(tomo1_dir).glob("*.pt"))
 
         for k, (tomo0_tensorfile, tomo1_tensorfile) in enumerate(zip(tomo0_tensorfiles, tomo1_tensorfiles)):
             tomo0 = load_data(tomo0_tensorfile).float()
             tomo1 = load_data(tomo1_tensorfile).float()
+            
             if standardize_full_tomos:
                 print(
                     f"Standardizing tomogram '{Path(tomo0_tensorfile).stem}' & '{Path(tomo1_tensorfile).stem}' before extracting sub-tomograms."
                 )
-                tomo0 -= tomo0.mean(); tomo1 -= tomo1.mean()
-                tomo0 /= tomo0.std(); tomo1 /= tomo1.std()
+                tomo0 -= tomo0.mean()
+                tomo1 -= tomo1.mean()
+                tomo0 /= tomo0.std()
+                tomo1 /= tomo1.std()
             else:
                 std = tomo0.std()
                 if std < 1e-3:
@@ -203,6 +221,7 @@ def prepare_data(
                         \nConsider setting 'standardize_full_tomos=True'.\
                         \nIf you do so, you must also set 'standardize_full_tomos=True' for 'ddw refine-tomogram'.\
                 ")
+            
             subtomos0, start_coords = extract_subtomos(
                 tomo=tomo0,
                 subtomo_size=subtomo_size,
@@ -217,37 +236,6 @@ def prepare_data(
                 enlarge_subtomos_for_rotating=extract_larger_subtomos_for_rotating,
                 pad_before_subtomo_extraction=pad_before_subtomo_extraction,
             )
-            # if mask_file is not None:
-            #     mask = load_data(mask_file).float()
-            # else:
-            #     mask = torch.ones_like(tomo0)
-            # if not (mask == 0).logical_or(mask == 1).all():
-            #     raise ValueError("Mask entries must be either 0 or 1")
-            # subtomos_mask, _ = extract_subtomos(
-            #     tomo=mask,
-            #     subtomo_size=subtomo_size,
-            #     subtomo_extraction_strides=subtomo_extraction_strides,
-            #     enlarge_subtomos_for_rotating=extract_larger_subtomos_for_rotating,
-            #     pad_before_subtomo_extraction=pad_before_subtomo_extraction,
-            # )
-            # selected_subtomo_ids = [
-            #     k
-            #     for k, submask in enumerate(subtomos_mask)
-            #     if (submask.sum() / submask.numel()) >= min_nonzero_mask_fraction_in_subtomo
-            # ]
-            # if mask_file is not None and verbose:
-            #     print(
-            #         f"Masking selected {len(selected_subtomo_ids)}/{len(subtomos0)} subtomos extracted from tomogram {k}"
-            #     )
-            # subtomos0 = [
-            #     subtomo for k, subtomo in enumerate(subtomos0) if k in selected_subtomo_ids
-            # ]
-            # subtomos1 = [
-            #     subtomo for k, subtomo in enumerate(subtomos1) if k in selected_subtomo_ids
-            # ]
-            # start_coords = [
-            #     coords for k, coords in enumerate(start_coords) if k in selected_subtomo_ids
-            # ]
 
             num_val_subtomos = math.ceil(len(subtomos0) * val_fraction)
             val_ids = (
@@ -275,78 +263,47 @@ def prepare_data(
                 )
                 val_counter += 1
 
-        if verbose:
-            print(f"Done with sub-tomogram extraction.")
-            print(
-                f"Saved a total of {fitting_counter} sub-tomograms for model fitting to '{fitting_subtomo0_dir}'."
-            )
-            print(
-                f"Saved a total of {val_counter} sub-tomograms for validation to '{val_subtomo0_dir}'."
-            )
-
-
-
-def setup_tomo_dir(data_dir, subtomo_dir, project_dir, tomo0_name, tomo1_name, overwrite, verbose):
-    """
-    Sets up and manages directories for storing tomogram and subtomogram data
-    """
-    if data_dir is None:
-        if project_dir is not None:
-            data_dir = f"{project_dir}/tomos"
-        else:
-            raise ValueError(
-                "tomo_dir must be provided if project_dir is not provided"
-            )
     if verbose:
-        print(f"Saving all tomogram tensors to '{data_dir}'.")
-    if os.path.exists(data_dir):
-        if overwrite == True:
-            if verbose:
-                print(f"Removing existing tomogram directory '{data_dir}'.")
-            shutil.rmtree(data_dir)
-        else:
-            raise ValueError(
-                f"subtomo_dir '{data_dir}' already exists. Set 'overwrite' to 'True' to remove it."
-            )
-    if subtomo_dir is None:
-        if project_dir is not None:
-            subtomo_dir = f"{project_dir}/subtomos"
-        else:
-            raise ValueError(
-                "subtomo_dir must be provided if project_dir is not provided"
-            )
-    if verbose:
-        print(f"Saving all subtomograms to '{subtomo_dir}'.")
-    if os.path.exists(subtomo_dir):
-        if overwrite == True:
-            if verbose:
-                print(f"Removing existing subtomogram directory '{subtomo_dir}'.")
-            shutil.rmtree(subtomo_dir)
-        else:
-            raise ValueError(
-                f"subtomo_dir '{subtomo_dir}' already exists. Set 'overwrite' to 'True' to remove it."
-            )
-    tomo0_dir=f"{data_dir}/tomo0/{tomo0_name}"
-    tomo1_dir=f"{data_dir}/tomo1/{tomo1_name}"
+        print(f"Done with sub-tomogram extraction.")
+        print(
+            f"Saved a total of {fitting_counter} sub-tomograms for model fitting."
+        )
+        print(
+            f"Saved a total of {val_counter} sub-tomograms for validation."
+        )
+
+
+def setup_tomo_dir(data_dir, subtomo_dir, tomo0_name, tomo1_name):
+    """
+    Sets up sub-directories specific to the current tomogram pair.
+    The root logic (overwrite/creation) is now handled outside of the loop.
+    """
+    tomo0_dir = f"{data_dir}/tomo0/{tomo0_name}"
+    tomo1_dir = f"{data_dir}/tomo1/{tomo1_name}"
+    
     fitting_subtomo0_dir = f"{subtomo_dir}/fitting_subtomos/subtomo0/{tomo0_name}"
-    fitting_subtomo1_dir= f"{subtomo_dir}/fitting_subtomos/subtomo1/{tomo1_name}"
-    val_subtomo0_dir= f"{subtomo_dir}/val_subtomos/subtomo1/{tomo0_name}"
+    fitting_subtomo1_dir = f"{subtomo_dir}/fitting_subtomos/subtomo1/{tomo1_name}"
+    
+    # --- CORRECTION 2: val_subtomo0_dir pointait vers "subtomo1" ---
+    val_subtomo0_dir = f"{subtomo_dir}/val_subtomos/subtomo0/{tomo0_name}"
     val_subtomo1_dir = f"{subtomo_dir}/val_subtomos/subtomo1/{tomo1_name}"
 
-    os.makedirs(tomo0_dir, exist_ok=False)
-    os.makedirs(tomo1_dir, exist_ok=False)
-    os.makedirs(fitting_subtomo0_dir, exist_ok=False)
-    os.makedirs(fitting_subtomo1_dir, exist_ok=False)
-    os.makedirs(val_subtomo0_dir, exist_ok=False)
-    os.makedirs(val_subtomo1_dir, exist_ok=False)
+    os.makedirs(tomo0_dir, exist_ok=True)
+    os.makedirs(tomo1_dir, exist_ok=True)
+    os.makedirs(fitting_subtomo0_dir, exist_ok=True)
+    os.makedirs(fitting_subtomo1_dir, exist_ok=True)
+    os.makedirs(val_subtomo0_dir, exist_ok=True)
+    os.makedirs(val_subtomo1_dir, exist_ok=True)
+    
     return (tomo0_dir, fitting_subtomo0_dir, val_subtomo0_dir,
             tomo1_dir, fitting_subtomo1_dir, val_subtomo1_dir)
 
-# Exemple d'utilisation :
-data = prepare_data(tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_all_frames.rec"],
-                    tomo1_files= ["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_all_frames.rec"],
-                    subtomo_size=100,
-                    project_dir= "testing",
-                    overwrite= True)
-
-
+# --- CORRECTION 3: Utilisation de la classe `Path` pour l'appel de test ---
+if __name__ == "__main__":
+    data = prepare_data(
+        tomo0_files=[Path("/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_all_frames.rec")],
+        tomo1_files=[Path("/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_all_frames.rec")],
+        subtomo_size=100,
+        project_dir=Path("testing"),
+        overwrite=True
+    )
