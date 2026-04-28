@@ -6,7 +6,7 @@ import mrcfile
 import numpy as np
 from PIL import Image
 
-def collect_data(image_file, output_dir, verbose = True):
+def collect_data(image_file, output_dir):
     """
     Collects data from an file (MRC or other supported by PIL) and saves it as .pt files.
     """
@@ -16,12 +16,8 @@ def collect_data(image_file, output_dir, verbose = True):
                 data = torch.tensor(mrc.data)
             except TypeError:
                 data = torch.tensor(mrc.data.astype(float))
-            file_name = Path(image_file).stem
-            os.makedirs(f"{output_dir}/{file_name}", exist_ok=False)
-            if verbose:
-                print(f"Collecting data from {file_name}. 3D tomogram shape: {data.shape}")
             for y in range(data.shape[1]):
-                torch.save(data[:, y, :].clone(), f"{output_dir}/{file_name}/{y}.pt")
+                torch.save(data[:, y, :].clone(), f"{output_dir}/{y}.pt")
 
     except: 
         try:
@@ -32,8 +28,6 @@ def collect_data(image_file, output_dir, verbose = True):
 
             file_name =  Path(image_file).stem
             os.makedirs(f"{output_dir}/{file_name}", exist_ok=False)
-            if verbose:
-                print(f"Collecting data from {file_name}. 2D image shape: {data.shape}")
             torch.save(data.clone(), f"{output_dir}/{file_name}.pt")
             
         except Exception as e:
