@@ -137,12 +137,9 @@ def prepare_data(
                 "min_nonzero_mask_fraction_in_subtomo must be provided if mask_files are provided"
             )
         
-    fitting_counter, val_counter = 0, 0
-
     if verbose:
         print(f"Starting subtomogram extraction from {len(tomo0_files)} tomogram(s).")
 
-    # --- CORRECTION 1: Gérer les dossiers globaux AVANT la boucle pour éviter de les effacer à chaque itération ---
     if data_dir is None:
         if project_dir is not None:
             data_dir = Path(project_dir) / "tomos"
@@ -166,10 +163,12 @@ def prepare_data(
                     f"Directory '{d}' already exists. Set 'overwrite=True' to remove it."
                 )
         os.makedirs(d, exist_ok=True)
-    # -------------------------------------------------------------------------------------------------------------
 
-    for (tomo0_file, tomo1_file, mask_file) in zip(tomo0_files, tomo1_files, mask_files):
-        
+    total_fitting_counter, total_val_counter = 0, 0
+
+    for num_tomos, (tomo0_file, tomo1_file, mask_file) in enumerate(zip(tomo0_files, tomo1_files, mask_files)):
+        fitting_counter, val_counter = 0, 0
+ 
         tomo0_name = Path(tomo0_file).stem
         tomo1_name = Path(tomo1_file).stem
         
@@ -201,7 +200,7 @@ def prepare_data(
         tomo0_tensorfiles = sorted(Path(tomo0_dir).glob("*.pt"))
         tomo1_tensorfiles = sorted(Path(tomo1_dir).glob("*.pt"))
 
-        for k, (tomo0_tensorfile, tomo1_tensorfile) in enumerate(zip(tomo0_tensorfiles, tomo1_tensorfiles)):
+        for (tomo0_tensorfile, tomo1_tensorfile) in zip(tomo0_tensorfiles, tomo1_tensorfiles):
             tomo0 = load_data(tomo0_tensorfile).float()
             tomo1 = load_data(tomo1_tensorfile).float()
             
@@ -221,7 +220,8 @@ def prepare_data(
                         \nConsider setting 'standardize_full_tomos=True'.\
                         \nIf you do so, you must also set 'standardize_full_tomos=True' for 'ddw refine-tomogram'.\
                 ")
-            
+          
+  
             subtomos0, start_coords = extract_subtomos(
                 tomo=tomo0,
                 subtomo_size=subtomo_size,
@@ -237,15 +237,7 @@ def prepare_data(
                 pad_before_subtomo_extraction=pad_before_subtomo_extraction,
             )
 
-            num_val_subtomos = math.ceil(len(subtomos0) * val_fraction)
-            val_ids = (
-                random.Random(seed).sample(range(len(subtomos0)), num_val_subtomos)
-                if num_val_subtomos > 0
-                else []
-            )
-            fitting_ids = [k for k in range(len(subtomos0)) if k not in val_ids]
-
-            for idx in sorted(fitting_ids):
+            for idx in range(len(subtomos0)):
                 torch.save(
                     subtomos0[idx].clone(), f"{fitting_subtomo0_dir}/{fitting_counter}.pt"
                 )
@@ -254,22 +246,42 @@ def prepare_data(
                 )
                 fitting_counter += 1
 
-            for idx in sorted(val_ids):
-                torch.save(
-                    subtomos0[idx].clone(), f"{val_subtomo0_dir}/{val_counter}.pt"
-                )
-                torch.save(
-                    subtomos1[idx].clone(), f"{val_subtomo1_dir}/{val_counter}.pt"
-                )
-                val_counter += 1
+
+        fitting_subtomo0_tensorfiles = sorted(Path(fitting_subtomo0_dir).glob("*.pt"))
+
+        num_val_subtomos = math.ceil(len(fitting_subtomo0_tensorfiles) * val_fraction)
+        val_ids = (
+            random.Random(seed).sample(range(len(fitting_subtomo0_tensorfiles)), num_val_subtomos)
+            if num_val_subtomos > 0
+            else []
+        )
+        for idx in sorted(val_ids):
+            shutil.move(f"{fitting_subtomo0_dir}/{idx}.pt", f"{val_subtomo0_dir}/{idx}.pt")
+            shutil.move(f"{fitting_subtomo1_dir}/{idx}.pt", f"{val_subtomo1_dir}/{idx}.pt")
+
+            val_counter += 1
+
+        fitting_counter -= val_counter
+
+        total_fitting_counter += fitting_counter
+        total_val_counter += val_counter
+
+        if verbose:
+            print(f"Done with {num_tomos} sub-tomogram extraction.")
+            print(
+                f"Saved {fitting_counter} sub-tomograms for model fitting from {num_tomos} tomogram."
+            )
+            print(
+                f"Saved {val_counter} sub-tomograms for validation from {num_tomos} tomogram."
+            )
 
     if verbose:
-        print(f"Done with sub-tomogram extraction.")
+        print(f"Done with all sub-tomogram extraction.")
         print(
-            f"Saved a total of {fitting_counter} sub-tomograms for model fitting."
+            f"Saved a total of {total_fitting_counter} sub-tomograms for model fitting."
         )
         print(
-            f"Saved a total of {val_counter} sub-tomograms for validation."
+            f"Saved a total of {total_val_counter} sub-tomograms for validation."
         )
 
 
@@ -284,7 +296,6 @@ def setup_tomo_dir(data_dir, subtomo_dir, tomo0_name, tomo1_name):
     fitting_subtomo0_dir = f"{subtomo_dir}/fitting_subtomos/subtomo0/{tomo0_name}"
     fitting_subtomo1_dir = f"{subtomo_dir}/fitting_subtomos/subtomo1/{tomo1_name}"
     
-    # --- CORRECTION 2: val_subtomo0_dir pointait vers "subtomo1" ---
     val_subtomo0_dir = f"{subtomo_dir}/val_subtomos/subtomo0/{tomo0_name}"
     val_subtomo1_dir = f"{subtomo_dir}/val_subtomos/subtomo1/{tomo1_name}"
 
@@ -298,12 +309,10 @@ def setup_tomo_dir(data_dir, subtomo_dir, tomo0_name, tomo1_name):
     return (tomo0_dir, fitting_subtomo0_dir, val_subtomo0_dir,
             tomo1_dir, fitting_subtomo1_dir, val_subtomo1_dir)
 
-# --- CORRECTION 3: Utilisation de la classe `Path` pour l'appel de test ---
-if __name__ == "__main__":
-    data = prepare_data(
-        tomo0_files=[Path("/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_all_frames.rec")],
-        tomo1_files=[Path("/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_all_frames.rec")],
-        subtomo_size=100,
-        project_dir=Path("testing"),
-        overwrite=True
-    )
+data = prepare_data(
+    tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_all_frames.rec", "/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_even_frames.rec"],
+    tomo1_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_all_frames.rec", "/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_odd_frames.rec"],
+    subtomo_size=100,
+    project_dir="testing",
+    overwrite=True
+)

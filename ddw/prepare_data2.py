@@ -127,14 +127,6 @@ def prepare_data(
     """
     Extract square sub-tomograms that are used to generate inputs and targets for model fitting. Typically the first command to run.
     """
-    # create output directories
-    data_dir, fitting_subtomo_dir, val_subtomo_dir = setup_tomo_dir(
-        data_dir= data_dir,
-        subtomo_dir=subtomo_dir,
-        project_dir=project_dir,
-        overwrite=overwrite,
-        verbose=verbose,
-    )
     # check if mask_files are provided properly
     if len(mask_files) == 0:
         mask_files = [None] * len(tomo0_files)
@@ -144,202 +136,175 @@ def prepare_data(
             raise ValueError(
                 "min_nonzero_mask_fraction_in_subtomo must be provided if mask_files are provided"
             )
-    # prepare 3d files for 2D correction, collect data from tomo files
-    for (tomo0_file, tomo1_file, mask_file) in zip(tomo0_files, tomo1_files, mask_files):
-        collect_data(
-            image_file= tomo0_file,
-            output_dir= f"{data_dir}/tomo0",
-            verbose=verbose
-        )
+        
+    if verbose:
+        print(f"Starting subtomogram extraction from {len(tomo0_files)} tomogram(s).")
 
-        collect_data(
-            image_file= tomo1_file,
-            output_dir= f"{data_dir}/tomo1",
-            verbose=verbose
+    if data_dir is None:
+        if project_dir is not None:
+            data_dir = Path(project_dir) / "tomos"
+        else:
+            raise ValueError("data_dir must be provided if project_dir is not provided")
+
+    if subtomo_dir is None:
+        if project_dir is not None:
+            subtomo_dir = Path(project_dir) / "subtomos"
+        else:
+            raise ValueError("subtomo_dir must be provided if project_dir is not provided")
+
+    for d in [data_dir, subtomo_dir]:
+        if os.path.exists(d):
+            if overwrite:
+                if verbose:
+                    print(f"Removing existing directory '{d}'.")
+                shutil.rmtree(d)
+            else:
+                raise ValueError(
+                    f"Directory '{d}' already exists. Set 'overwrite=True' to remove it."
+                )
+        os.makedirs(d, exist_ok=True)
+
+    total_fitting_counter, total_val_counter = 0, 0
+
+    for num_tomos, (tomo0_file, tomo1_file, mask_file) in enumerate(zip(tomo0_files, tomo1_files, mask_files)):
+        fitting_counter, val_counter = 0, 0
+ 
+        tomo0_name = Path(tomo0_file).stem
+        tomo1_name = Path(tomo1_file).stem
+        
+        # create output directories specifically for these tomograms
+        tomo0_dir, fitting_subtomo0_dir, val_subtomo0_dir,\
+        tomo1_dir, fitting_subtomo1_dir, val_subtomo1_dir = setup_tomo_dir(
+            data_dir=data_dir,
+            subtomo_dir=subtomo_dir,
+            tomo0_name=tomo0_name,
+            tomo1_name=tomo1_name
         )
 
         if mask_file is not None:
-            collect_data(
-                image_file= mask_file,
-                output_dir= f"{data_dir}/mask",
-                verbose=verbose
-        )
-    
-    # actual subtomogram extraction
-    tomo0_tensorfiles = Path(f"{data_dir}/tomo0").rglob("*.pt")
-    tomo1_tensorfiles = Path(f"{data_dir}/tomo1").rglob("*.pt")
-    if verbose:
-        print(f"Starting subtomogram extraction from {len(tomo0_files)} tomogram(s).")
-    fitting_counter, val_counter = 0, 0
-    # sans masque car je ne sais pas le faire
-    for k, (tomo0_tensorfile, tomo1_tensorfile) in enumerate(zip(tomo0_tensorfiles, tomo1_tensorfiles)):
-        tomo0 = load_data(tomo0_tensorfile).float()
-        tomo1 = load_data(tomo1_tensorfile).float()
-        if standardize_full_tomos:
-            print(
-                f"Standardizing tomogram '{Path(tomo0_tensorfile).stem}' & '{Path(tomo1_tensorfile).stem}' before extracting sub-tomograms."
-            )
-            tomo0 -= tomo0.mean(); tomo1 -= tomo1.mean()
-            tomo0 /= tomo0.std(); tomo1 /= tomo1.std()
-        else:
-            std = tomo0.std()
-            if std < 1e-3:
-                print(f"\
-                    WARNING: Standard deviation of '{Path(tomo0_tensorfile).stem}' is low ({std}), which may lead to issues during model fitting!\
-                    \nConsider setting 'standardize_full_tomos=True'.\
-                    \nIf you do so, you must also set 'standardize_full_tomos=True' for 'ddw refine-tomogram'.\
-            ")
-        subtomos0, start_coords = extract_subtomos(
-            tomo=tomo0,
-            subtomo_size=subtomo_size,
-            subtomo_extraction_strides=subtomo_extraction_strides,
-            enlarge_subtomos_for_rotating=extract_larger_subtomos_for_rotating,
-            pad_before_subtomo_extraction=pad_before_subtomo_extraction,
-        )
-        subtomos1, _ = extract_subtomos(
-            tomo=tomo1,
-            subtomo_size=subtomo_size,
-            subtomo_extraction_strides=subtomo_extraction_strides,
-            enlarge_subtomos_for_rotating=extract_larger_subtomos_for_rotating,
-            pad_before_subtomo_extraction=pad_before_subtomo_extraction,
-        )
-    #     if mask_file is not None:
-    #         mask = load_data(mask_file).float()
-    #     else:
-    #         mask = torch.ones_like(tomo0)
-    #     if not (mask == 0).logical_or(mask == 1).all():
-    #         raise ValueError("Mask entries must be either 0 or 1")
-    #     subtomos_mask, _ = extract_subtomos(
-    #         tomo=mask,
-    #         subtomo_size=subtomo_size,
-    #         subtomo_extraction_strides=subtomo_extraction_strides,
-    #         enlarge_subtomos_for_rotating=extract_larger_subtomos_for_rotating,
-    #         pad_before_subtomo_extraction=pad_before_subtomo_extraction,
-    #     )
-    #     selected_subtomo_ids = [
-    #         k
-    #         for k, submask in enumerate(subtomos_mask)
-    #         if (submask.sum() / submask.numel()) >= min_nonzero_mask_fraction_in_subtomo
-    #     ]
-    #     if mask_file is not None and verbose:
-    #         print(
-    #             f"Masking selected {len(selected_subtomo_ids)}/{len(subtomos0)} subtomos extracted from tomogram {k}"
-    #         )
-    #     subtomos0 = [
-    #         subtomo for k, subtomo in enumerate(subtomos0) if k in selected_subtomo_ids
-    #     ]
-    #     subtomos1 = [
-    #         subtomo for k, subtomo in enumerate(subtomos1) if k in selected_subtomo_ids
-    #     ]
-    #     start_coords = [
-    #         coords for k, coords in enumerate(start_coords) if k in selected_subtomo_ids
-    #     ]
+            mask_name = Path(mask_file).stem
+            mask_dir = Path(data_dir) / "masks" / mask_name
+            os.makedirs(mask_dir, exist_ok=True)
 
-    #     # val_ids = try_to_sample_non_overlapping_subtomo_ids(
-    #     #     subtomo_start_coords=start_coords,
-    #     #     subtomo_size=subtomo_size,
-    #     #     target_sample_size=math.floor(len(subtomos0) * val_fraction),
-    #     #     max_tries=3,
-    #     #     verbose=False,
-    #     # )
-    #     # if len(val_ids) < math.floor(len(subtomos0) * val_fraction):
-    #     #     print(
-    #     #         f"WARNING: Could not sample {round(val_fraction*100, 2)}% of all subtomos for validation due to overlap with the fitting data. "
-    #     #         f"Continuing with {round((len(val_ids)/len(subtomos0))*100, 2)}% (i.e. {len(val_ids)}) validation subtomos."
-    #     #     )
-        num_val_subtomos = math.ceil(len(subtomos0) * val_fraction)
+        # Collect data from tomogram files
+        if verbose:
+            print(f"Processing tomogram pairs: '{tomo0_name}' & '{tomo1_name}'")
+
+        collect_data(image_file=tomo0_file, output_dir=tomo0_dir)
+        collect_data(image_file=tomo1_file, output_dir=tomo1_dir)
+
+        if mask_file is not None:
+            collect_data(image_file=mask_file, output_dir=mask_dir)
+    
+        # actual subtomogram extraction
+        tomo0_tensorfiles = sorted(Path(tomo0_dir).glob("*.pt"))
+        tomo1_tensorfiles = sorted(Path(tomo1_dir).glob("*.pt"))
+
+        for (tomo0_tensorfile, tomo1_tensorfile) in zip(tomo0_tensorfiles, tomo1_tensorfiles):
+            tomo0 = load_data(tomo0_tensorfile).float()
+            tomo1 = load_data(tomo1_tensorfile).float()
+            
+            if standardize_full_tomos:
+                print(
+                    f"Standardizing tomogram '{Path(tomo0_tensorfile).stem}' & '{Path(tomo1_tensorfile).stem}' before extracting sub-tomograms."
+                )
+                tomo0 -= tomo0.mean()
+                tomo1 -= tomo1.mean()
+                tomo0 /= tomo0.std()
+                tomo1 /= tomo1.std()
+            else:
+                std = tomo0.std()
+                if std < 1e-3:
+                    print(f"\
+                        WARNING: Standard deviation of '{Path(tomo0_tensorfile).stem}' is low ({std}), which may lead to issues during model fitting!\
+                        \nConsider setting 'standardize_full_tomos=True'.\
+                        \nIf you do so, you must also set 'standardize_full_tomos=True' for 'ddw refine-tomogram'.\
+                ")
+          
+  
+            subtomos0, start_coords = extract_subtomos(
+                tomo=tomo0,
+                subtomo_size=subtomo_size,
+                subtomo_extraction_strides=subtomo_extraction_strides,
+                enlarge_subtomos_for_rotating=extract_larger_subtomos_for_rotating,
+                pad_before_subtomo_extraction=pad_before_subtomo_extraction,
+            )
+            subtomos1, _ = extract_subtomos(
+                tomo=tomo1,
+                subtomo_size=subtomo_size,
+                subtomo_extraction_strides=subtomo_extraction_strides,
+                enlarge_subtomos_for_rotating=extract_larger_subtomos_for_rotating,
+                pad_before_subtomo_extraction=pad_before_subtomo_extraction,
+            )
+
+            for idx in range(len(subtomos0)):
+                torch.save(
+                    subtomos0[idx].clone(), f"{fitting_subtomo0_dir}/{fitting_counter}.pt"
+                )
+                torch.save(
+                    subtomos1[idx].clone(), f"{fitting_subtomo1_dir}/{fitting_counter}.pt"
+                )
+                fitting_counter += 1
+
+
+        fitting_subtomo0_tensorfiles = sorted(Path(fitting_subtomo0_dir).glob("*.pt"))
+
+        num_val_subtomos = math.ceil(len(fitting_subtomo0_tensorfiles) * val_fraction)
         val_ids = (
-            random.Random(seed).sample(range(len(subtomos0)), num_val_subtomos)
+            random.Random(seed).sample(range(len(fitting_subtomo0_tensorfiles)), num_val_subtomos)
             if num_val_subtomos > 0
             else []
         )
-        fitting_ids = [k for k in range(len(subtomos0)) if k not in val_ids]
-
-        for idx in sorted(fitting_ids):
-            torch.save(
-                subtomos0[idx].clone(), f"{fitting_subtomo_dir}/subtomo0//{fitting_counter}.pt"
-            )
-            torch.save(
-                subtomos1[idx].clone(), f"{fitting_subtomo_dir}/subtomo1//{fitting_counter}.pt"
-            )
-            fitting_counter += 1
-
         for idx in sorted(val_ids):
-            torch.save(
-                subtomos0[idx].clone(), f"{val_subtomo_dir}/subtomo0/{val_counter}.pt"
-            )
-            torch.save(
-                subtomos1[idx].clone(), f"{val_subtomo_dir}/subtomo1/{val_counter}.pt"
-            )
+            shutil.move(f"{fitting_subtomo0_dir}/{idx}.pt", f"{val_subtomo0_dir}/{idx}.pt")
+            shutil.move(f"{fitting_subtomo1_dir}/{idx}.pt", f"{val_subtomo1_dir}/{idx}.pt")
+
             val_counter += 1
 
+        fitting_counter -= val_counter
+
+        total_fitting_counter += fitting_counter
+        total_val_counter += val_counter
+
+        if verbose:
+            print(f"Done with {num_tomos} sub-tomogram extraction.")
+            print(
+                f"Saved {fitting_counter} sub-tomograms for model fitting from {num_tomos} tomogram."
+            )
+            print(
+                f"Saved {val_counter} sub-tomograms for validation from {num_tomos} tomogram."
+            )
+
     if verbose:
-        print(f"Done with sub-tomogram extraction.")
+        print(f"Done with all sub-tomogram extraction.")
         print(
-            f"Saved a total of {fitting_counter} sub-tomograms for model fitting to '{fitting_subtomo_dir}'."
+            f"Saved a total of {total_fitting_counter} sub-tomograms for model fitting."
         )
         print(
-            f"Saved a total of {val_counter} sub-tomograms for validation to '{val_subtomo_dir}'."
+            f"Saved a total of {total_val_counter} sub-tomograms for validation."
         )
 
 
-def setup_tomo_dir(data_dir, subtomo_dir, project_dir, overwrite, verbose):
+def setup_tomo_dir(data_dir, subtomo_dir, tomo0_name, tomo1_name):
     """
-    Sets up and manages directories for storing tomogram and subtomogram data
+    Sets up sub-directories specific to the current tomogram pair.
+    The root logic (overwrite/creation) is now handled outside of the loop.
     """
-    if data_dir is None:
-        if project_dir is not None:
-            data_dir = f"{project_dir}/tomos"
-        else:
-            raise ValueError(
-                "tomo_dir must be provided if project_dir is not provided"
-            )
-    if verbose:
-        print(f"Saving all tomogram tensors to '{data_dir}'.")
-    if os.path.exists(data_dir):
-        if overwrite == True:
-            if verbose:
-                print(f"Removing existing tomogram directory '{data_dir}'.")
-            shutil.rmtree(data_dir)
-        else:
-            raise ValueError(
-                f"subtomo_dir '{data_dir}' already exists. Set 'overwrite' to 'True' to remove it."
-            )
-    if subtomo_dir is None:
-        if project_dir is not None:
-            subtomo_dir = f"{project_dir}/subtomos"
-        else:
-            raise ValueError(
-                "subtomo_dir must be provided if project_dir is not provided"
-            )
-    if verbose:
-        print(f"Saving all subtomograms to '{subtomo_dir}'.")
-    if os.path.exists(subtomo_dir):
-        if overwrite == True:
-            if verbose:
-                print(f"Removing existing subtomogram directory '{subtomo_dir}'.")
-            shutil.rmtree(subtomo_dir)
-        else:
-            raise ValueError(
-                f"subtomo_dir '{subtomo_dir}' already exists. Set 'overwrite' to 'True' to remove it."
-            )
+    tomo0_dir = f"{data_dir}/tomo0/{tomo0_name}"
+    tomo1_dir = f"{data_dir}/tomo1/{tomo1_name}"
+    
+    fitting_subtomo0_dir = f"{subtomo_dir}/fitting_subtomos/subtomo0/{tomo0_name}"
+    fitting_subtomo1_dir = f"{subtomo_dir}/fitting_subtomos/subtomo1/{tomo1_name}"
+    
+    val_subtomo0_dir = f"{subtomo_dir}/val_subtomos/subtomo0/{tomo0_name}"
+    val_subtomo1_dir = f"{subtomo_dir}/val_subtomos/subtomo1/{tomo1_name}"
 
-    fitting_subtomo_dir = f"{subtomo_dir}/fitting_subtomos"
-    val_subtomo_dir = f"{subtomo_dir}/val_subtomos"
-
-    os.makedirs(f"{data_dir}/tomo0/", exist_ok=False)
-    os.makedirs(f"{data_dir}/tomo1/", exist_ok=False)
-    os.makedirs(f"{fitting_subtomo_dir}/subtomo0/", exist_ok=False)
-    os.makedirs(f"{fitting_subtomo_dir}/subtomo1/", exist_ok=False)
-    os.makedirs(f"{val_subtomo_dir}/subtomo0/", exist_ok=False)
-    os.makedirs(f"{val_subtomo_dir}/subtomo1/", exist_ok=False)
-    return data_dir, fitting_subtomo_dir, val_subtomo_dir
-
-# Exemple d'utilisation :
-data = prepare_data(tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_all_frames.rec"],
-                    tomo1_files= ["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_all_frames.rec"],
-                    subtomo_size=100,
-                    project_dir= "testing",
-                    overwrite= True)
-
-
+    os.makedirs(tomo0_dir, exist_ok=True)
+    os.makedirs(tomo1_dir, exist_ok=True)
+    os.makedirs(fitting_subtomo0_dir, exist_ok=True)
+    os.makedirs(fitting_subtomo1_dir, exist_ok=True)
+    os.makedirs(val_subtomo0_dir, exist_ok=True)
+    os.makedirs(val_subtomo1_dir, exist_ok=True)
+    
+    return (tomo0_dir, fitting_subtomo0_dir, val_subtomo0_dir,
+            tomo1_dir, fitting_subtomo1_dir, val_subtomo1_dir)
