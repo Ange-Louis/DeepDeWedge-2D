@@ -1,5 +1,5 @@
 import math
-from .mrctools2 import load_data
+from ddw.utils.mrctools2 import load_data
 import numpy as np
 import torch
 

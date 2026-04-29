@@ -267,7 +267,7 @@ def prepare_data(
         total_val_counter += val_counter
 
         if verbose:
-            print(f"Done with {num_tomos} sub-tomogram extraction.")
+            print(f"Done with {num_tomos+1}th sub-tomogram extraction.")
             print(
                 f"Saved {fitting_counter} sub-tomograms for model fitting from {num_tomos} tomogram."
             )
@@ -310,9 +310,9 @@ def setup_tomo_dir(data_dir, subtomo_dir, tomo0_name, tomo1_name):
             tomo1_dir, fitting_subtomo1_dir, val_subtomo1_dir)
 
 data = prepare_data(
-    tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_all_frames.rec", "/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_even_frames.rec"],
-    tomo1_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_all_frames.rec", "/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_odd_frames.rec"],
-    subtomo_size=100,
+    tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_even_frames.rec"],
+    tomo1_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_odd_frames.rec"],
+    subtomo_size=128,
     project_dir="testing",
     overwrite=True
 )

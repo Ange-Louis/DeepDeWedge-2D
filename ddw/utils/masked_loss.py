@@ -1,6 +1,6 @@
 import torch
 
-from .fourier2 import apply_fourier_mask_to_tomo
+from ddw.utils.fourier2 import apply_fourier_mask_to_tomo
 
 
 def masked_loss(model_output, target, rot_mw_mask, mw_mask, mw_weight=2.0):

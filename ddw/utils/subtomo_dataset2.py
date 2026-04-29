@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import numpy as np
 import time
@@ -7,10 +8,10 @@ from scipy import spatial
 from torch.utils.data import Dataset
 from torchvision.transforms.functional import rotate
 
-from .fourier2 import apply_fourier_mask_to_tomo
-from .missing_wedge2 import (get_missing_wedge_mask,
+from ddw.utils.fourier2 import apply_fourier_mask_to_tomo
+from ddw.utils.missing_wedge2 import (get_missing_wedge_mask,
                             get_rotated_missing_wedge_mask)
-from .rotation2 import rotate_area
+from ddw.utils.rotation2 import rotate_area
 
 BASE_SEED = 888
 
@@ -50,6 +51,12 @@ class SubtomoDataset(Dataset):
         self.rotate_subtomos = rotate_subtomos
         self.deterministic_rotations = deterministic_rotations
 
+        self.subtomo0_path = Path(self.subtomo_dir) / "subtomo0"
+        self.subtomo1_path = Path(self.subtomo_dir) / "subtomo1"
+
+        self.subtomo0_files = sorted(list(self.subtomo0_path.rglob("*.pt")))
+        self.subtomo1_files = sorted(list(self.subtomo1_path.rglob("*.pt")))
+
     @property
     def rotate_subtomos(self):
         return self._rotate_subtomos
@@ -69,13 +76,13 @@ class SubtomoDataset(Dataset):
         return rot_angle
 
     def __len__(self):
-        return len(os.listdir(f"{self.subtomo_dir}/subtomo0"))
+        return len(self.subtomo0_files)
 
     def __getitem__(self, index):
         # load subtomos
-        subtomo0_file = f"{self.subtomo_dir}/subtomo0/{index}.pt"
+        subtomo0_file = str(self.subtomo0_files[index])
         subtomo0 = safe_load(subtomo0_file)
-        subtomo1_file = f"{self.subtomo_dir}/subtomo1/{index}.pt"
+        subtomo1_file = str(self.subtomo1_files[index])
         subtomo1 = safe_load(subtomo1_file)
         # rotate subtomos
         if self.rotate_subtomos == True:

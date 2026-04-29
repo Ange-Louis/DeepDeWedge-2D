@@ -11,14 +11,15 @@ from torch.utils.data import DataLoader, TensorDataset
 from typer_config import conf_callback_factory
 from typing_extensions import Annotated
 
-from .fit_model2 import LitUnet2D
-from .utils.fourier2 import apply_fourier_mask_to_tomo
-from .utils.load_function_args_from_yaml_config import \
+from ddw.fit_model2 import LitUnet2D
+from ddw.utils.fourier2 import apply_fourier_mask_to_tomo
+from ddw.utils.load_function_args_from_yaml_config import \
     load_function_args_from_yaml_config
-from .utils.missing_wedge2 import get_missing_wedge_mask
-from .utils.mrctools2 import load_data, save_mrc_data
-from .utils.normalization2 import get_avg_model_input_mean_and_std
-from .utils.subtomos2 import extract_subtomos, reassemble_subtomos
+from ddw.utils.missing_wedge2 import get_missing_wedge_mask
+from ddw.utils.mrctools import load_data
+from ddw.utils.mrctools2 import collect_data, save_mrc_data
+from ddw.utils.normalization2 import get_avg_model_input_mean_and_std
+from ddw.utils.subtomos2 import extract_subtomos, reassemble_subtomos
 
 loader = lambda yaml_config_file: load_function_args_from_yaml_config(
     function=refine_tomogram, yaml_config_file=yaml_config_file
@@ -259,12 +260,14 @@ def _refine_single_tomogram(
 
 
 # Exemple d'utilisation
-refine_tomogram(
-    tomo0_files=["/home/nathan/Downloads/Inverse FFT of 1105.tif"],
-    tomo1_files= ["/home/nathan/Downloads/Inverse FFT of 1105 (1).tif"],
-    model_checkpoint_file= "/home/nathan/Desktop/Ange-Louis/DDW2/testing/logs/version_30/checkpoints/fitting_loss/epoch=853-fitting_loss=21.08032.ckpt",
-    subtomo_size=92,
-    mw_angle=50,
-    project_dir= "testing",
-    num_workers=10
-)
+if __name__ == "__main__":
+    refine_tomogram(
+        tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/evn.tif"],
+        tomo1_files= ["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/odd.tif"],
+        model_checkpoint_file= "/home/nathan/Desktop/Ange-Louis/DDW2/testing/logs/version_0/checkpoints/val_loss/epoch=49-val_loss=2.08691.ckpt",
+        subtomo_size=128,
+        mw_angle=50,
+        project_dir= "testing",
+        num_workers=10,
+        recompute_normalization=False
+    )
