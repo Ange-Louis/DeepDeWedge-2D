@@ -16,8 +16,8 @@ from ddw.utils.fourier2 import apply_fourier_mask_to_tomo
 from ddw.utils.load_function_args_from_yaml_config import \
     load_function_args_from_yaml_config
 from ddw.utils.missing_wedge2 import get_missing_wedge_mask
-from ddw.utils.mrctools import load_data
-from ddw.utils.mrctools2 import collect_data, save_mrc_data
+from ddw.utils import mrctools
+from ddw.utils.mrctools2 import load_data, save_mrc_data
 from ddw.utils.normalization2 import get_avg_model_input_mean_and_std
 from ddw.utils.subtomos2 import extract_subtomos, reassemble_subtomos
 
@@ -82,6 +82,12 @@ def refine_tomogram(
             help="Whether to return the refined tomograms as a list of tensors. If 'False', the refined tomograms will only be saved to 'output_dir', and the function returns nothing."
         ),
     ] = False,
+    data_dir: Annotated[
+        Optional[Path],
+        typer.Option(
+            help="Where to save the initial tomogram slices. If not provided, the tomograms will be saved to '{project_dir}/tomos'."
+        ),
+    ] = None,
     output_dir: Annotated[
         Optional[Path],
         typer.Option(
@@ -118,6 +124,11 @@ def refine_tomogram(
     """
     Use a fitted U-Net to denoise tomograms and to fill in their missing wedge. Typically run after `fit-model`.
     """
+    if data_dir is None:
+        if project_dir is not None:
+            data_dir = f"{project_dir}/tomos"
+        else:
+            raise ValueError("data_dir must be provided if project_dir is not provided")
     if output_dir is None:
         if project_dir is not None:
             output_dir = f"{project_dir}/refined_tomograms"
@@ -149,64 +160,60 @@ def refine_tomogram(
     )
 
     with torch.no_grad():
-        for t0_file, t1_file in zip(tomo0_files, tomo1_files):
-            if recompute_normalization:
-                loc, scale = get_avg_model_input_mean_and_std(
-                    tomo_file=t0_file,
+        for k, (t0_file, t1_file) in enumerate(zip(tomo0_files, tomo1_files)):
+            t0_name = Path(t0_file).stem
+            t1_name = Path(t1_file).stem
+
+            tomo_to_refine = mrctools.load_data(t0_file)
+
+            print(f"Refining {k}th tomogram")
+
+            if len(tomo_to_refine.shape) == 3:
+                refined = refine_3d(
+                    tomo_to_refine= tomo_to_refine,
+                    t0_file=t0_file,
+                    t0_name=t0_name,
+                    t1_name= t1_name,
+                    data_dir=data_dir,
+                    lightning_model= lightning_model,
                     subtomo_size=subtomo_size,
-                    subtomo_extraction_strides=2 * [subtomo_size - subtomo_overlap],
+                    subtomo_overlap=subtomo_overlap,
                     mw_angle=mw_angle,
-                    batch_size=batch_size,
-                    standardize=standardize_full_tomos,
                     num_workers=num_workers,
-                    verbose=True,
+                    batch_size=batch_size,
+                    standardize_full_tomos= standardize_full_tomos,
+                    recompute_normalization= recompute_normalization
                 )
             else:
-                loc, scale = (
-                    lightning_model.unet.normalization_loc.clone().detach().item(),
-                    lightning_model.unet.normalization_scale.clone().detach().item(),
+                refined = refine_2d(
+                    t0_name= t0_name,
+                    t1_name= t1_name,
+                    t0_file= t0_file,
+                    t1_file= t1_file,
+                    lightning_model= lightning_model,
+                    subtomo_size= subtomo_size,
+                    subtomo_overlap= subtomo_overlap,
+                    mw_angle= mw_angle,
+                    num_workers= num_workers,
+                    batch_size= batch_size,
+                    standardize_full_tomos= standardize_full_tomos,
+                    recompute_normalization= recompute_normalization
                 )
 
-            t_ref = _refine_single_tomogram(
-                tomo_file=t0_file,
-                lightning_model=lightning_model,
-                subtomo_size=subtomo_size,
-                subtomo_overlap=subtomo_overlap,
-                mw_angle=mw_angle,
-                normalization_loc=loc,
-                normalization_scale=scale,
-                num_workers=num_workers,
-                batch_size=batch_size,
-                pbar_desc="Refining tomo0",
-            )
-            t_ref += _refine_single_tomogram(
-                tomo_file=t1_file,
-                lightning_model=lightning_model,
-                subtomo_size=subtomo_size,
-                subtomo_overlap=subtomo_overlap,
-                mw_angle=mw_angle,
-                normalization_loc=loc,
-                normalization_scale=scale,
-                num_workers=num_workers,
-                batch_size=batch_size,
-                pbar_desc="Refining tomo1",
-            )
-            t_ref /= 2
             if return_tomos:
-                tomo_ref.append(t_ref)
+                tomo_ref.append(refined)
+                
             if output_dir is not None:
-                basename0, ext = os.path.splitext(os.path.basename(t0_file))
-                basename1, ext = os.path.splitext(os.path.basename(t1_file))
-                basename = f"{basename0}+{basename1}"
-                outfile = f"{output_dir}/{basename}_refined{ext}"
+                basename = f"{t0_name}+{t1_name}"
+                outfile = f"{output_dir}/{basename}_refined.mrc"
                 print(f"Saving refined tomogram to {outfile}")
-                save_mrc_data(t_ref.cpu(), f"{outfile}", save=True)
+                save_mrc_data(refined.cpu(), f"{outfile}", save=True)
     if return_tomos:
         return tomo_ref
 
 
 def _refine_single_tomogram(
-    tomo_file,
+    tomo,
     lightning_model,
     subtomo_size,
     subtomo_overlap,
@@ -217,8 +224,6 @@ def _refine_single_tomogram(
     batch_size=1,
     pbar_desc="Refining tomogram",
 ):
-    # Probleme liste
-    tomo = load_data(tomo_file).float()#.to(lightning_model.device) 
     # apply missing wedge mask here to be more consistent with data during model fitting
     mw_mask = get_missing_wedge_mask(tomo.shape, mw_angle, device=tomo.device)
     tomo = apply_fourier_mask_to_tomo(tomo, mw_mask)
@@ -240,6 +245,7 @@ def _refine_single_tomogram(
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
+        pin_memory= True
     )
     model_outputs = []
     with torch.no_grad():
@@ -258,16 +264,153 @@ def _refine_single_tomogram(
     )
     return tomo_ref
 
+def refine_3d(
+        tomo_to_refine,
+        t0_file,
+		t0_name,
+		t1_name,
+		data_dir,
+		lightning_model,
+		subtomo_size,
+		subtomo_overlap,
+		mw_angle,
+		num_workers,
+		batch_size,
+        standardize_full_tomos,
+        recompute_normalization,
+):
+    if recompute_normalization:
+        loc, scale = get_avg_model_input_mean_and_std(
+            tomo_file=t0_file,
+            subtomo_size=subtomo_size,
+            subtomo_extraction_strides=2 * [subtomo_size - subtomo_overlap],
+            mw_angle=mw_angle,
+            batch_size=batch_size,
+            standardize=standardize_full_tomos,
+            num_workers=num_workers,
+            verbose=True,
+        )
+    else:
+        loc, scale = (
+            lightning_model.unet.normalization_loc.clone().detach().item(),
+            lightning_model.unet.normalization_scale.clone().detach().item(),
+        )
+
+    t0_dir = f"{data_dir}/tomo0/{t0_name}"
+    t1_dir = f"{data_dir}/tomo1/{t1_name}"
+    t0_tensorfiles = sorted(Path(t0_dir).glob("*.pt"))
+    t1_tensorfiles = sorted(Path(t1_dir).glob("*.pt"))
+
+    refined = torch.empty(tomo_to_refine.shape[0], 0, tomo_to_refine.shape[2])
+
+
+    for k, (t0_tensorfile, t1_tomotensorfile) in enumerate(zip(t0_tensorfiles, t1_tensorfiles)):
+        t0 = load_data(t0_tensorfile).float()
+        t1 = load_data(t1_tomotensorfile).float()
+
+        t_ref = _refine_single_tomogram(
+            tomo=t0,
+            lightning_model=lightning_model,
+            subtomo_size=subtomo_size,
+            subtomo_overlap=subtomo_overlap,
+            mw_angle=mw_angle,
+            normalization_loc=loc,
+            normalization_scale=scale,
+            num_workers=num_workers,
+            batch_size=batch_size,
+            pbar_desc=f"EVN: {t0_name} slice {k}",
+        )
+        t_ref += _refine_single_tomogram(
+            tomo=t1,
+            lightning_model=lightning_model,
+            subtomo_size=subtomo_size,
+            subtomo_overlap=subtomo_overlap,
+            mw_angle=mw_angle,
+            normalization_loc=loc,
+            normalization_scale=scale,
+            num_workers=num_workers,
+            batch_size=batch_size,
+            pbar_desc=f"ODD: {t1_name} slice {k}",
+        )
+        t_ref /= 2
+
+        t_ref = t_ref.unsqueeze(1)
+        refined = torch.cat([refined, t_ref], dim=1)
+    return refined
+
+
+def refine_2d(
+        t0_name,
+        t1_name,
+        t0_file,
+        t1_file,
+		lightning_model,
+		subtomo_size,
+		subtomo_overlap,
+		mw_angle,
+		num_workers,
+		batch_size,
+        standardize_full_tomos,
+        recompute_normalization
+):
+    if recompute_normalization:
+        loc, scale = get_avg_model_input_mean_and_std(
+            tomo_file=t0_file,
+            subtomo_size= subtomo_size,
+            subtomo_extraction_strides= 2 * [subtomo_size-subtomo_overlap],
+            mw_angle= mw_angle,
+            batch_size= batch_size,
+            standardize= standardize_full_tomos,
+            num_workers= num_workers,
+            verbose=True
+        )
+
+    else:
+        loc, scale = (
+            lightning_model.unet.normalization_loc.clone().detach().item(),
+            lightning_model.unet.normalization_scale.clone().detach().item()
+        )
+
+    t0 = mrctools.load_data(t0_file).float()
+    t1 = mrctools.load_data(t1_file).float()
+    t_ref = _refine_single_tomogram(
+        tomo=t0,
+        lightning_model= lightning_model,
+        subtomo_size= subtomo_size,
+        subtomo_overlap= subtomo_overlap,
+        mw_angle= mw_angle,
+        normalization_loc= loc,
+        normalization_scale= scale,
+        num_workers= num_workers,
+        batch_size= batch_size,
+        pbar_desc=f"Refining {t0_name}"
+    )
+    t_ref += _refine_single_tomogram(
+        tomo=t1,
+        lightning_model= lightning_model,
+        subtomo_size= subtomo_size,
+        subtomo_overlap= subtomo_overlap,
+        mw_angle= mw_angle,
+        normalization_loc= loc,
+        normalization_scale= scale,
+        num_workers= num_workers,
+        batch_size= batch_size,
+        pbar_desc=f"Refining {t1_name}"
+    )
+    t_ref /=2
+    return t_ref
+
 
 # Exemple d'utilisation
 if __name__ == "__main__":
     refine_tomogram(
-        tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/evn.tif"],
-        tomo1_files= ["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/odd.tif"],
-        model_checkpoint_file= "/home/nathan/Desktop/Ange-Louis/DDW2/testing/logs/version_0/checkpoints/val_loss/epoch=49-val_loss=2.08691.ckpt",
+        tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_even_frames.rec"],
+        tomo1_files= ["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_odd_frames.rec"],
+        model_checkpoint_file= "testing/logs/version_1/checkpoints/val_loss/epoch=49-val_loss=2.09461.ckpt",
         subtomo_size=128,
         mw_angle=50,
         project_dir= "testing",
         num_workers=10,
-        recompute_normalization=False
+        recompute_normalization=False,
+        batch_size= 10
     )

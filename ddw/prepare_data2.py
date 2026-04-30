@@ -95,7 +95,7 @@ def prepare_data(
     data_dir: Annotated[
         Optional[Path],
         typer.Option(
-            help="Where to save the initial tomograms. If not provided, the tomograms will be saved to '{project_dir}/tomos'."
+            help="Where to save the initial tomogram slices. If not provided, the tomograms will be saved to '{project_dir}/tomos'."
         ),
     ] = None,
     project_dir: Annotated[
@@ -142,13 +142,13 @@ def prepare_data(
 
     if data_dir is None:
         if project_dir is not None:
-            data_dir = Path(project_dir) / "tomos"
+            data_dir = f"{project_dir}/tomos"
         else:
             raise ValueError("data_dir must be provided if project_dir is not provided")
 
     if subtomo_dir is None:
         if project_dir is not None:
-            subtomo_dir = Path(project_dir) / "subtomos"
+            subtomo_dir = f"{project_dir}/subtomos"
         else:
             raise ValueError("subtomo_dir must be provided if project_dir is not provided")
 
