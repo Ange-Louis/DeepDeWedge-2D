@@ -2,6 +2,7 @@
 import ast
 import inspect
 import os
+import glob
 from pathlib import Path
 from typing import Optional
 
@@ -12,11 +13,11 @@ from typer_config import conf_callback_factory
 from typing import Union, List
 from typing_extensions import Annotated
 
-from .utils.dataloader import MultiEpochsDataLoader as DataLoader
-from .utils.load_function_args_from_yaml_config import \
+from ddw.utils.dataloader import MultiEpochsDataLoader as DataLoader
+from ddw.utils.load_function_args_from_yaml_config import \
     load_function_args_from_yaml_config
-from .utils.subtomo_dataset2 import SubtomoDataset
-from .utils.unet2 import LitUnet2D
+from ddw.utils.subtomo_dataset2 import SubtomoDataset
+from ddw.utils.unet2 import LitUnet2D
 
 
 loader = lambda yaml_config_file: load_function_args_from_yaml_config(
@@ -156,7 +157,7 @@ def fit_model2(
     # check if there are subtomos for validation
     val_data_exists = (
         os.path.exists(f"{subtomo_dir}/val_subtomos")
-        and len(os.listdir(f"{subtomo_dir}/val_subtomos/subtomo0")) > 0
+        and len(glob.glob(f"{subtomo_dir}/val_subtomos/subtomo0/**/*.pt")) > 0
     )
     if not val_data_exists:
         print(
@@ -279,14 +280,15 @@ def fit_model2(
 
 
 # Exemple d'utilisation :
-model = fit_model2(
-    unet_params_dict= {'chans': 64, 'num_downsample_layers': 3, 'drop_prob': 0.0},
-    adam_params_dict= {'lr': 0.0004},
-    num_epochs=1,
-    batch_size=5,
-    num_workers=10,
-    gpu= [0, 1],
-    subtomo_size=80,
-    mw_angle=50,
-    project_dir="testing",
-)
+if __name__ == "__main__":
+    model = fit_model2(
+        unet_params_dict= {'chans': 64, 'num_downsample_layers': 3, 'drop_prob': 0.0},
+        adam_params_dict= {'lr': 0.0004},
+        num_epochs=50,
+        batch_size=10,
+        num_workers=15,
+        gpu= [0, 1],
+        subtomo_size=128,
+        mw_angle=50,
+        project_dir="testing",
+    )

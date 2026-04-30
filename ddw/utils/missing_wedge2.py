@@ -2,8 +2,8 @@ import math
 
 import torch
 
-from .fourier2 import get_2d_fft_freqs_on_grid
-from .rotation2 import rotate_area
+from ddw.utils.fourier2 import get_2d_fft_freqs_on_grid
+from ddw.utils.rotation2 import rotate_area
 
 
 def get_missing_wedge_mask(grid_size, mw_angle, device="cpu"):
