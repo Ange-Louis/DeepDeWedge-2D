@@ -298,8 +298,8 @@ def refine_3d(
 
     t0_dir = f"{data_dir}/tomo0/{t0_name}"
     t1_dir = f"{data_dir}/tomo1/{t1_name}"
-    t0_tensorfiles = sorted(Path(t0_dir).glob("*.pt"))
-    t1_tensorfiles = sorted(Path(t1_dir).glob("*.pt"))
+    t0_tensorfiles = sorted(Path(t0_dir).glob("*.pt"), key=lambda x: int(x.stem))
+    t1_tensorfiles = sorted(Path(t1_dir).glob("*.pt"), key=lambda x: int(x.stem))
 
     refined = torch.empty(tomo_to_refine.shape[0], 0, tomo_to_refine.shape[2])
 
@@ -307,6 +307,8 @@ def refine_3d(
     for k, (t0_tensorfile, t1_tomotensorfile) in enumerate(zip(t0_tensorfiles, t1_tensorfiles)):
         t0 = load_data(t0_tensorfile).float()
         t1 = load_data(t1_tomotensorfile).float()
+
+        print(t0_tensorfile.stem)
 
         t_ref = _refine_single_tomogram(
             tomo=t0,
@@ -410,7 +412,8 @@ if __name__ == "__main__":
         subtomo_size=128,
         mw_angle=50,
         project_dir= "testing",
-        num_workers=10,
+        num_workers=0,
         recompute_normalization=False,
-        batch_size= 10
+        batch_size= 10,
+        gpu= [0,1]
     )

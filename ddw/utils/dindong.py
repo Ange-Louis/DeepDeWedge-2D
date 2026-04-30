@@ -142,13 +142,13 @@ def prepare_data(
 
     if data_dir is None:
         if project_dir is not None:
-            data_dir = Path(project_dir) / "tomos"
+            data_dir = f"{project_dir}/tomos"
         else:
             raise ValueError("data_dir must be provided if project_dir is not provided")
 
     if subtomo_dir is None:
         if project_dir is not None:
-            subtomo_dir = Path(project_dir) / "subtomos"
+            subtomo_dir = f"{project_dir}/subtomos"
         else:
             raise ValueError("subtomo_dir must be provided if project_dir is not provided")
 
@@ -197,8 +197,8 @@ def prepare_data(
             collect_data(image_file=mask_file, output_dir=mask_dir)
     
         # actual subtomogram extraction
-        tomo0_tensorfiles = sorted(Path(tomo0_dir).glob("*.pt"))
-        tomo1_tensorfiles = sorted(Path(tomo1_dir).glob("*.pt"))
+        tomo0_tensorfiles = sorted(Path(tomo0_dir).glob("*.pt"), key=lambda x: int(x.stem))
+        tomo1_tensorfiles = sorted(Path(tomo1_dir).glob("*.pt"), key=lambda x: int(x.stem))
 
         for (tomo0_tensorfile, tomo1_tensorfile) in zip(tomo0_tensorfiles, tomo1_tensorfiles):
             tomo0 = load_data(tomo0_tensorfile).float()
@@ -247,7 +247,7 @@ def prepare_data(
                 fitting_counter += 1
 
 
-        fitting_subtomo0_tensorfiles = sorted(Path(fitting_subtomo0_dir).glob("*.pt"))
+        fitting_subtomo0_tensorfiles = sorted(Path(fitting_subtomo0_dir).glob("*.pt"), key=lambda x: int(x.stem))
 
         num_val_subtomos = math.ceil(len(fitting_subtomo0_tensorfiles) * val_fraction)
         val_ids = (

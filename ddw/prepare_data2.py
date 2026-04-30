@@ -197,8 +197,8 @@ def prepare_data(
             collect_data(image_file=mask_file, output_dir=mask_dir)
     
         # actual subtomogram extraction
-        tomo0_tensorfiles = sorted(Path(tomo0_dir).glob("*.pt"))
-        tomo1_tensorfiles = sorted(Path(tomo1_dir).glob("*.pt"))
+        tomo0_tensorfiles = sorted(Path(tomo0_dir).glob("*.pt"), key=lambda x: int(x.stem))
+        tomo1_tensorfiles = sorted(Path(tomo1_dir).glob("*.pt"), key=lambda x: int(x.stem))
 
         for (tomo0_tensorfile, tomo1_tensorfile) in zip(tomo0_tensorfiles, tomo1_tensorfiles):
             tomo0 = load_data(tomo0_tensorfile).float()
