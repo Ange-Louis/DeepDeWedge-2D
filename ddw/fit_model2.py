@@ -282,13 +282,13 @@ def fit_model2(
 # Exemple d'utilisation :
 if __name__ == "__main__":
     model = fit_model2(
-        unet_params_dict= {'chans': 64, 'num_downsample_layers': 3, 'drop_prob': 0.0},
+        unet_params_dict= {'chans': 64, 'num_downsample_layers': 3, 'drop_prob': 0.3},
         adam_params_dict= {'lr': 0.0004},
-        num_epochs=50,
-        batch_size=10,
-        num_workers=15,
+        num_epochs=1000,
+        batch_size=32,
+        num_workers=10,
         gpu= [0, 1],
         subtomo_size=128,
         mw_angle=50,
-        project_dir="testing",
+        project_dir="testing"
     )

@@ -95,7 +95,7 @@ def prepare_data(
     data_dir: Annotated[
         Optional[Path],
         typer.Option(
-            help="Where to save the initial tomogram slices. If not provided, the tomograms will be saved to '{project_dir}/tomos'."
+            help="Where to save the initial tomograms. If not provided, the tomograms will be saved to '{project_dir}/tomos'."
         ),
     ] = None,
     project_dir: Annotated[
@@ -247,7 +247,7 @@ def prepare_data(
                 fitting_counter += 1
 
 
-        fitting_subtomo0_tensorfiles = sorted(Path(fitting_subtomo0_dir).glob("*.pt"))
+        fitting_subtomo0_tensorfiles = sorted(Path(fitting_subtomo0_dir).glob("*.pt"), key=lambda x: int(x.stem))
 
         num_val_subtomos = math.ceil(len(fitting_subtomo0_tensorfiles) * val_fraction)
         val_ids = (
@@ -267,7 +267,7 @@ def prepare_data(
         total_val_counter += val_counter
 
         if verbose:
-            print(f"Done with {num_tomos} sub-tomogram extraction.")
+            print(f"Done with {num_tomos+1}th sub-tomogram extraction.")
             print(
                 f"Saved {fitting_counter} sub-tomograms for model fitting from {num_tomos} tomogram."
             )
@@ -283,7 +283,6 @@ def prepare_data(
         print(
             f"Saved a total of {total_val_counter} sub-tomograms for validation."
         )
-
 
 def setup_tomo_dir(data_dir, subtomo_dir, tomo0_name, tomo1_name):
     """
@@ -308,3 +307,12 @@ def setup_tomo_dir(data_dir, subtomo_dir, tomo0_name, tomo1_name):
     
     return (tomo0_dir, fitting_subtomo0_dir, val_subtomo0_dir,
             tomo1_dir, fitting_subtomo1_dir, val_subtomo1_dir)
+
+if __name__ == "__main__":
+    prepare_data(
+    tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_even_frames.rec"],
+    tomo1_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_odd_frames.rec"],
+    subtomo_size=128,
+    project_dir="testing",
+    overwrite=True
+    )

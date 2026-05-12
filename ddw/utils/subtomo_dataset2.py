@@ -13,6 +13,8 @@ from ddw.utils.missing_wedge2 import (get_missing_wedge_mask,
                             get_rotated_missing_wedge_mask)
 from ddw.utils.rotation2 import rotate_area
 
+from ddw.utils.mrctools2 import save_mrc_data
+
 BASE_SEED = 888
 
 
@@ -97,6 +99,11 @@ class SubtomoDataset(Dataset):
                 rot_angle=rot_angle,
                 output_shape=2 * [self.crop_subtomos_to_size],
             )
+
+            # save_mrc_data(subtomo0, f"testing/subtomos_rotated/subtomo0/{Path(subtomo0_file).stem}.mrc")
+            # save_mrc_data(subtomo1, f"testing/subtomos_rotated/subtomo1/{Path(subtomo1_file).stem}.mrc")
+
+
             # add missing wedge
             mw_mask = get_missing_wedge_mask(
                 grid_size=2 * [self.crop_subtomos_to_size],

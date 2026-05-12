@@ -408,7 +408,7 @@ if __name__ == "__main__":
     refine_tomogram(
         tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_even_frames.rec"],
         tomo1_files= ["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_odd_frames.rec"],
-        model_checkpoint_file= "testing/logs/version_1/checkpoints/val_loss/epoch=49-val_loss=2.09461.ckpt",
+        model_checkpoint_file= "testing/logs/version_12/checkpoints/val_loss/epoch=49-val_loss=2.28719.ckpt",
         subtomo_size=128,
         mw_angle=50,
         project_dir= "testing",

@@ -22,13 +22,10 @@ def collect_data(image_file, output_dir):
     except: 
         try:
             # Essayer de charger avec PIL (pour les formats standards)
-            img = Image.open(image_file)
+            img = Image.open(image_file).convert('L')
             data = np.array(img)
-            data = torch.tensor(data)
-
-            file_name =  Path(image_file).stem
-            os.makedirs(f"{output_dir}/{file_name}", exist_ok=False)
-            torch.save(data.clone(), f"{output_dir}/{file_name}.pt")
+            data = torch.flip(torch.tensor(data), dims=[0])
+            torch.save(data.clone(), f"{output_dir}/0.pt")
             
         except Exception as e:
             raise ValueError(f"Error: {e}")
@@ -55,4 +52,3 @@ def save_mrc_data(data, mrc_file, save=False):
             shutil.move(mrc_file, f"{mrc_file}~")
     with mrcfile.new(mrc_file, overwrite=True) as mrc:
         mrc.set_data(data.numpy())
-
