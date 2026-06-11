@@ -4,18 +4,19 @@ from pathlib import Path
 class TestGenerator:
     def __init__(self):
         self.repo_root = Path.cwd()
-        self.src_dir = self.repo_root / "src"
+        self.src_dir = self.repo_root / "src" / "ddw"
         self.test_dir = self.repo_root / "tests"
     
     def get_all_source_functions(self):
         modules = {}
         if not self.src_dir.exists():
+            print("Warning: src/ddw/ directory not found")
             return modules
         for py_file in self.src_dir.rglob("*.py"):
             if py_file.name.startswith("_"):
                 continue
             rel_path = py_file.relative_to(self.src_dir)
-            module_path = "src." + str(rel_path).replace("/", ".").replace(".py", "")
+            module_path = "src.ddw." + str(rel_path).replace("/", ".").replace(".py", "")
             try:
                 with open(py_file, 'r') as f:
                     tree = ast.parse(f.read())
@@ -38,14 +39,14 @@ class TestGenerator:
                 with open(test_file, 'r') as f:
                     content = f.read()
                 for line in content.split("\n"):
-                    if "from src.ddw" in line or "from src." in line:
+                    if "from src.ddw" in line:
                         tested_modules.add(line.split("import")[0].strip())
             except Exception:
                 pass
         return tested_modules
     
     def generate_test_file(self, module_path, functions):
-        rel_path = module_path.replace("src.", "").replace(".", "/")
+        rel_path = module_path.replace("src.ddw.", "").replace(".", "/")
         test_rel_path = "test_" + rel_path
         test_file = self.test_dir / (test_rel_path + ".py")
         test_file.parent.mkdir(parents=True, exist_ok=True)
@@ -60,7 +61,7 @@ class TestGenerator:
         return test_file
     
     def run(self):
-        print("Scanning source code...")
+        print("Scanning source code in src/ddw/...")
         source_modules = self.get_all_source_functions()
         existing_tests = self.get_existing_tests()
         generated_files = []
@@ -68,13 +69,13 @@ class TestGenerator:
             if module not in existing_tests:
                 test_file = self.generate_test_file(module, functions)
                 generated_files.append(test_file)
-                print("Generated: " + str(test_file.relative_to(self.repo_root)))
+                print(f"Generated: {test_file.relative_to(self.repo_root)}")
+        if generated_files:
+            print(f"\nGenerated {len(generated_files)} test files")
+        else:
+            print("\nNo new tests needed")
         return generated_files
 
 if __name__ == "__main__":
     generator = TestGenerator()
-    generated_files = generator.run()
-    if generated_files:
-        print("Generated " + str(len(generated_files)) + " test files")
-    else:
-        print("No new tests needed")
+    generator.run()
