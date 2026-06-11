@@ -1,7 +1,7 @@
 import torch
 from matplotlib import pyplot as plt
 
-from ddw.utils.fourier2 import fft_3d
+from src.ddw.utils.fourier2 import fft_3d
 
 
 def plot_tomo_slices(tomo, domain="image", figsize=(7, 5)):

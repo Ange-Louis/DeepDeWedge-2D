@@ -6,10 +6,10 @@ import tqdm
 import yaml
 from torch import nn
 
-from ddw.utils.fourier2 import apply_fourier_mask_to_tomo
-from ddw.utils.masked_loss import masked_loss
-from ddw.utils.missing_wedge2 import get_missing_wedge_mask
-from ddw.utils.normalization2 import get_avg_model_input_mean_and_std_from_dataloader
+from src.ddw.utils.fourier2 import apply_fourier_mask_to_tomo
+from src.ddw.utils.masked_loss import masked_loss
+from src.ddw.utils.missing_wedge2 import get_missing_wedge_mask
+from src.ddw.utils.normalization2 import get_avg_model_input_mean_and_std_from_dataloader
 
 
 class LitUnet2D(pl.LightningModule):

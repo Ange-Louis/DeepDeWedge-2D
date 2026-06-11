@@ -1,8 +1,8 @@
 import typer
 
-from ddw.fit_model2 import fit_model2
-from ddw.prepare_data2 import prepare_data
-from ddw.refine_tomogram2 import refine_tomogram
+from src.ddw.fit_model2 import fit_model2
+from src.ddw.prepare_data2 import prepare_data
+from src.ddw.refine_tomogram2 import refine_tomogram
 
 # pretty_exceptions_show_locals=False gives shorter error messages
 app = typer.Typer(pretty_exceptions_show_locals=False)

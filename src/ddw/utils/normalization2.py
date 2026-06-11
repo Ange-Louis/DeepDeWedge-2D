@@ -3,9 +3,9 @@ import tempfile
 import torch
 import tqdm
 
-from ddw.prepare_data2 import prepare_data
+from src.ddw.prepare_data2 import prepare_data
 
-from ddw.utils.subtomo_dataset2 import SubtomoDataset
+from src.ddw.utils.subtomo_dataset2 import SubtomoDataset
 
 
 def get_avg_model_input_mean_and_std(tomo_file, subtomo_size, subtomo_extraction_strides, standardize, mw_angle, batch_size, num_workers, batches=None, verbose=False):

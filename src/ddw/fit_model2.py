@@ -13,11 +13,11 @@ from typer_config import conf_callback_factory
 from typing import Union, List
 from typing_extensions import Annotated
 
-from ddw.utils.dataloader import MultiEpochsDataLoader as DataLoader
-from ddw.utils.load_function_args_from_yaml_config import \
+from src.ddw.utils.dataloader import MultiEpochsDataLoader as DataLoader
+from src.ddw.utils.load_function_args_from_yaml_config import \
     load_function_args_from_yaml_config
-from ddw.utils.subtomo_dataset2 import SubtomoDataset
-from ddw.utils.unet2 import LitUnet2D
+from src.ddw.utils.subtomo_dataset2 import SubtomoDataset
+from src.ddw.utils.unet2 import LitUnet2D
 
 
 loader = lambda yaml_config_file: load_function_args_from_yaml_config(

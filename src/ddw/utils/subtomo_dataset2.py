@@ -8,12 +8,12 @@ from scipy import spatial
 from torch.utils.data import Dataset
 from torchvision.transforms.functional import rotate
 
-from ddw.utils.fourier2 import apply_fourier_mask_to_tomo
-from ddw.utils.missing_wedge2 import (get_missing_wedge_mask,
+from src.ddw.utils.fourier2 import apply_fourier_mask_to_tomo
+from src.ddw.utils.missing_wedge2 import (get_missing_wedge_mask,
                             get_rotated_missing_wedge_mask)
-from ddw.utils.rotation2 import rotate_area
+from src.ddw.utils.rotation2 import rotate_area
 
-from ddw.utils.mrctools2 import save_mrc_data
+from src.ddw.utils.mrctools2 import save_mrc_data
 
 BASE_SEED = 888
 

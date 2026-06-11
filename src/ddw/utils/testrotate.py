@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import math
 import numpy as np
 import torch
-from ddw.utils.mrctools2 import load_data, save_mrc_data
+from src.ddw.utils.mrctools2 import load_data, save_mrc_data
 
 a = load_data("testing/tomos/tomo0/smiley/0.pt").float()
 b = np.zeros((1280,1280))

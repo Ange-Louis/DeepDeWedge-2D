@@ -11,11 +11,11 @@ import typer
 from typer_config import conf_callback_factory
 from typing_extensions import Annotated
 
-from ddw.utils.load_function_args_from_yaml_config import (
+from src.ddw.utils.load_function_args_from_yaml_config import (
     load_function_args_from_yaml_config,
 )
-from ddw.utils.mrctools2 import load_data, collect_data
-from ddw.utils.subtomos2 import extract_subtomos
+from src.ddw.utils.mrctools2 import load_data, collect_data
+from src.ddw.utils.subtomos2 import extract_subtomos
 
 loader = lambda yaml_config_file: load_function_args_from_yaml_config(
     function=prepare_data, yaml_config_file=yaml_config_file
@@ -284,6 +284,7 @@ def prepare_data(
             f"Saved a total of {total_val_counter} sub-tomograms for validation."
         )
 
+
 def setup_tomo_dir(data_dir, subtomo_dir, tomo0_name, tomo1_name):
     """
     Sets up sub-directories specific to the current tomogram pair.
@@ -308,13 +309,10 @@ def setup_tomo_dir(data_dir, subtomo_dir, tomo0_name, tomo1_name):
     return (tomo0_dir, fitting_subtomo0_dir, val_subtomo0_dir,
             tomo1_dir, fitting_subtomo1_dir, val_subtomo1_dir)
 
-if __name__ == "__main__":
-    prepare_data(
+data = prepare_data(
     tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_even_frames.rec"],
     tomo1_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_odd_frames.rec"],
     subtomo_size=128,
     project_dir="testing",
-    overwrite=True,
-    subtomo_extraction_strides=[80,80],
-    extract_larger_subtomos_for_rotating=False,
-    )
+    overwrite=True
+)

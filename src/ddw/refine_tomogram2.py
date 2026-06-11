@@ -11,14 +11,14 @@ from torch.utils.data import DataLoader, TensorDataset
 from typer_config import conf_callback_factory
 from typing_extensions import Annotated
 
-from ddw.fit_model2 import LitUnet2D
-from ddw.utils.fourier2 import apply_fourier_mask_to_tomo
-from ddw.utils.load_function_args_from_yaml_config import \
+from src.ddw.fit_model2 import LitUnet2D
+from src.ddw.utils.fourier2 import apply_fourier_mask_to_tomo
+from src.ddw.utils.load_function_args_from_yaml_config import \
     load_function_args_from_yaml_config
-from ddw.utils.missing_wedge2 import get_missing_wedge_mask
-from ddw.utils.mrctools2 import load_data, save_mrc_data, load_2d_data
-from ddw.utils.normalization2 import get_avg_model_input_mean_and_std
-from ddw.utils.subtomos2 import extract_subtomos, reassemble_subtomos
+from src.ddw.utils.missing_wedge2 import get_missing_wedge_mask
+from src.ddw.utils.mrctools2 import load_data, save_mrc_data, load_2d_data
+from src.ddw.utils.normalization2 import get_avg_model_input_mean_and_std
+from src.ddw.utils.subtomos2 import extract_subtomos, reassemble_subtomos
 
 loader = lambda yaml_config_file: load_function_args_from_yaml_config(
     function=refine_tomogram, yaml_config_file=yaml_config_file
