@@ -4,4 +4,4 @@ testing/
 .pytest_cache/
 .pixi/*
 !.pixi/config.toml
-smiley*
+smiley.py
