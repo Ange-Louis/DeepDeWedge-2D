@@ -16,8 +16,7 @@ from ddw.utils.fourier2 import apply_fourier_mask_to_tomo
 from ddw.utils.load_function_args_from_yaml_config import \
     load_function_args_from_yaml_config
 from ddw.utils.missing_wedge2 import get_missing_wedge_mask
-from ddw.utils import mrctools
-from ddw.utils.mrctools2 import load_data, save_mrc_data
+from ddw.utils.mrctools2 import load_data, save_mrc_data, load_2d_data
 from ddw.utils.normalization2 import get_avg_model_input_mean_and_std
 from ddw.utils.subtomos2 import extract_subtomos, reassemble_subtomos
 
@@ -164,7 +163,7 @@ def refine_tomogram(
             t0_name = Path(t0_file).stem
             t1_name = Path(t1_file).stem
 
-            tomo_to_refine = mrctools.load_data(t0_file)
+            tomo_to_refine = load_2d_data(t0_file)
 
             print(f"Refining {k}th tomogram")
 
@@ -373,8 +372,8 @@ def refine_2d(
             lightning_model.unet.normalization_scale.clone().detach().item()
         )
 
-    t0 = mrctools.load_data(t0_file).float()
-    t1 = mrctools.load_data(t1_file).float()
+    t0 = load_2d_data(t0_file).float()
+    t1 = load_2d_data(t1_file).float()
     t_ref = _refine_single_tomogram(
         tomo=t0,
         lightning_model= lightning_model,
@@ -408,7 +407,7 @@ if __name__ == "__main__":
     refine_tomogram(
         tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_even_frames.rec"],
         tomo1_files= ["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_odd_frames.rec"],
-        model_checkpoint_file= "testing/logs/version_12/checkpoints/val_loss/epoch=49-val_loss=2.28719.ckpt",
+        model_checkpoint_file= "testing/logs/version_2/checkpoints/val_loss/epoch=999-val_loss=2.82839.ckpt",
         subtomo_size=128,
         mw_angle=50,
         project_dir= "testing",

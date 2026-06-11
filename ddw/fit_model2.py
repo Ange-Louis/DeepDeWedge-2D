@@ -86,7 +86,7 @@ def fit_model2(
     update_subtomo_missing_wedges_every_n_epochs: Annotated[
         int,
         typer.Option(
-            help="After how many epochs to update the missing wedge in the subtomograms."
+            help="After how many epochs to update the missing wedge in the subtomograms. Schwitch off, set float('inf')"
         ),
     ] = 10,
     save_model_every_n_epochs: Annotated[
@@ -112,6 +112,18 @@ def fit_model2(
     seed: Annotated[
         Optional[int], typer.Option(help="Seed for reproducibility.")
     ] = None,
+    mw_weight: Annotated[
+        float,
+        typer.Option(help="Weight for the loss inside the missing wedge region relative to the outside region. Higher values prioritize missing wedge reconstruction (default: 2.0).")
+    ] = 2.0,
+    rotate_fitting_subtomos: Annotated[
+        bool,
+        typer.Option(help="Whether to rotate fitting subtomograms during processing (default: True).")
+    ] = True,
+    rotate_val_subtomos: Annotated[
+        bool,
+        typer.Option(help="Whether to rotate validation subtomograms during processing (default: True).")
+    ] = True,
     config: Annotated[
         Optional[str],
         typer.Option(
@@ -175,7 +187,7 @@ def fit_model2(
         subtomo_dir=f"{subtomo_dir}/fitting_subtomos",
         crop_subtomos_to_size=subtomo_size,
         mw_angle=mw_angle,
-        rotate_subtomos=True,
+        rotate_subtomos=rotate_fitting_subtomos,
         deterministic_rotations=False,
     )
     if val_data_exists:
@@ -183,7 +195,7 @@ def fit_model2(
             subtomo_dir=f"{subtomo_dir}/val_subtomos",
             crop_subtomos_to_size=subtomo_size,
             mw_angle=mw_angle,
-            rotate_subtomos=True,
+            rotate_subtomos=rotate_val_subtomos,
             deterministic_rotations=True,
         )
     # setup callbacks
@@ -227,6 +239,7 @@ def fit_model2(
         unet_params=unet_params_dict,
         adam_params=adam_params_dict,
         subtomo_dir=subtomo_dir,
+        mw_weight=mw_weight,
         update_subtomo_missing_wedges_every_n_epochs=update_subtomo_missing_wedges_every_n_epochs,
     )
     # initialize the trainer
@@ -284,11 +297,14 @@ if __name__ == "__main__":
     model = fit_model2(
         unet_params_dict= {'chans': 64, 'num_downsample_layers': 3, 'drop_prob': 0.3},
         adam_params_dict= {'lr': 0.0004},
-        num_epochs=1000,
+        num_epochs=10000,
         batch_size=32,
         num_workers=10,
         gpu= [0, 1],
         subtomo_size=128,
         mw_angle=50,
-        project_dir="testing"
+        project_dir="testing",
+        check_val_every_n_epochs=5,
+        save_model_every_n_epochs=float('inf'),
+        resume_from_checkpoint= "testing/logs/MW-Weight=2.0_drop-prob=0.3_1000epoch_80x80crop/checkpoints/val_loss/epoch=999-val_loss=2.82839.ckpt"
     )

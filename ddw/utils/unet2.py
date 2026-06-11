@@ -22,12 +22,14 @@ class LitUnet2D(pl.LightningModule):
         unet_params,
         adam_params,
         subtomo_dir,
+        mw_weight,
         update_subtomo_missing_wedges_every_n_epochs=10,
     ):
         super().__init__()
         self.unet_params = unet_params
         self.adam_params = adam_params
         self.subtomo_dir = subtomo_dir
+        self.mw_weight = mw_weight
         self.update_subtomo_missing_wedges_every_n_epochs = (
             update_subtomo_missing_wedges_every_n_epochs
         )
@@ -47,6 +49,7 @@ class LitUnet2D(pl.LightningModule):
             target=batch["model_target"],
             rot_mw_mask=batch["rot_mw_mask"],
             mw_mask=batch["mw_mask"],
+            mw_weight= self.mw_weight,
         )
         self.log(
             "fitting_loss",
@@ -65,6 +68,7 @@ class LitUnet2D(pl.LightningModule):
             target=batch["model_target"],
             rot_mw_mask=batch["rot_mw_mask"],
             mw_mask=batch["mw_mask"],
+            mw_weight= self.mw_weight,
         )
         self.log(
             "val_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True

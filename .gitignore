@@ -1,7 +1,7 @@
-__pycache__/
 testing/
 .vscode/
 .pixi/
 .pytest_cache/
-LICENSE
-README.md
+.pixi/*
+!.pixi/config.toml
+smiley*

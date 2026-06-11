@@ -40,6 +40,28 @@ def load_data(tensor_file):
 
     except Exception as e: 
         raise ValueError(f"Error: {e}")
+    
+def load_2d_data(file_path):
+    """
+    Loads a picture (.png, .tif, .jpeg, etc.) as a torch tensors.
+    """
+    file_type = os.path.splitext(file_path)[1].lower()
+
+    if (file_type == '.rec' or file_type == '.mrc'):
+        with mrcfile.open(file_path, permissive=True) as mrc:
+            try:
+                data = torch.tensor(mrc.data)
+            except TypeError:
+                data = torch.tensor(mrc.data.astype(float))
+        return data
+    else:
+        try:
+            img = Image.open(file_path)
+            img_array = np.array(img)
+            data = torch.tensor(img_array.astype(float))
+            return data
+        except Exception as e:
+            raise ValueError(f"Unsupported file format or corrupted file: {e}")
 
 
 def save_mrc_data(data, mrc_file, save=False):

@@ -314,5 +314,7 @@ if __name__ == "__main__":
     tomo1_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_odd_frames.rec"],
     subtomo_size=128,
     project_dir="testing",
-    overwrite=True
+    overwrite=True,
+    subtomo_extraction_strides=[80,80],
+    extract_larger_subtomos_for_rotating=False,
     )
