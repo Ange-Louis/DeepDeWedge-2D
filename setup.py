@@ -13,7 +13,7 @@ setup(
     author='Simon Wiedemann',
     author_email='simonw.wiedemann@tum.de',
     description='Simultaneous denoising and missing wedge reconstruction of cryo-ET tomograms.',
-    packages=['ddw', 'ddw.utils'],
+    packages=['src.ddw', 'src.ddw.utils'],
     entry_points={
         'console_scripts': [
             'ddw = ddw.app:main',
