@@ -90,12 +90,15 @@ class LitUnet2D(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), **self.adam_params)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.1)
-        return [optimizer] , [scheduler]
-
-    # def lr_scheduler_step(self, scheduler, optimizer_idx, metric) -> None:
-    #     if scheduler is not None:
-    #         scheduler.step()
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode= 'min', patience=30, factor=0.5)
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler" : scheduler,
+                "monitor" : "val_los",
+                "interval" : "epoch",
+            }
+        }
 
     def update_subtomo_missing_wedges(self):
         """
