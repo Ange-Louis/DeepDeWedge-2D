@@ -13,7 +13,7 @@ dependencies = [
 	"matplotlib",
 	"torchvision",
 	"pytorch-lightning",
-	"scipy"
+	"scipy",
 	]
 
 [tool.pixi.workspace]
