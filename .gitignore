@@ -5,3 +5,4 @@ testing/
 .pixi/*
 !.pixi/config.toml
 smiley.py
+__pycache__/
