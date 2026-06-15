@@ -90,8 +90,8 @@ class LitUnet2D(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), **self.adam_params)
-        # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.1)
-        return [optimizer]  # , [scheduler]
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.1)
+        return [optimizer] , [scheduler]
 
     # def lr_scheduler_step(self, scheduler, optimizer_idx, metric) -> None:
     #     if scheduler is not None:
