@@ -101,6 +101,10 @@ class LitUnet2D(pl.LightningModule):
                 "interval" : "epoch",
             }
         }
+    
+    def on_validation_epoch_end(self) -> None:
+        current_lr = self.optimizers()[0].param_groups[0]['lr']
+        self.log("learning_rate", current_lr, logger= True, on_step=False, on_epoch=True)
 
     def update_subtomo_missing_wedges(self):
         """
