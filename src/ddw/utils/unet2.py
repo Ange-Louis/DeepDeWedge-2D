@@ -92,8 +92,12 @@ class LitUnet2D(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), **self.adam_params)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode= 'min', patience=30, factor=0.5)
-        return [optimizer], [scheduler]
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=30, factor=0.5)
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": scheduler,
+            "monitor": "val_loss"
+        }
     
     def lr_scheduler_step(self, scheduler, optimizer_idx, metric):
         scheduler.step(metric)
@@ -140,7 +144,7 @@ class LitUnet2D(pl.LightningModule):
                 mw_mask_batch = mw_mask.repeat((*subtomo_batch.shape[:-2], 1, 1)).to(subtomo_batch.device)
                 # forward pass
                 subtomo_batch_ref = self.forward(subtomo_batch)
-                # update missing wedges    
+                # update missing wedges   
                 subtomo_batch = apply_fourier_mask_to_tomo(
                     subtomo_batch, mw_mask_batch
                 ) + apply_fourier_mask_to_tomo(subtomo_batch_ref, 1 - mw_mask_batch)
