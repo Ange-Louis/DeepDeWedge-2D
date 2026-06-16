@@ -82,6 +82,8 @@ class LitUnet2D(pl.LightningModule):
             self.update_normalization()
 
     def on_train_epoch_end(self) -> None:
+        self.log("learning_rate", self.optimizers()[0].param_groups[0]['lr'], prog_bar=True, logger=True)
+
         if (
             self.current_epoch + 1
         ) % self.update_subtomo_missing_wedges_every_n_epochs == 0:  # +1 because the epoch indexing starts at 0
@@ -91,14 +93,10 @@ class LitUnet2D(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), **self.adam_params)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode= 'min', patience=30, factor=0.5)
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler" : scheduler,
-                "monitor" : "val_los",
-                "interval" : "epoch",
-            }
-        }
+        return [optimizer], [scheduler]
+    
+    def lr_scheduler_step(self, scheduler, optimizer_idx, metric):
+        scheduler.step(metric)
 
     def update_subtomo_missing_wedges(self):
         """
