@@ -305,6 +305,6 @@ if __name__ == "__main__":
         mw_angle=50,
         subtomo_dir="testing/subtomos",
         project_dir="testing2",
-        check_val_every_n_epochs=5,
+        check_val_every_n_epochs=1,
         save_model_every_n_epochs=float('inf')
     )
