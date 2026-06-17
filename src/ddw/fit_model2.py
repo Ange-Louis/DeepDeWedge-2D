@@ -19,7 +19,7 @@ from src.ddw.utils.load_function_args_from_yaml_config import \
 from src.ddw.utils.subtomo_dataset2 import SubtomoDataset
 from src.ddw.utils.unet2 import LitUnet2D
 
-from src.ddw.utils.timing_decorators import pytorch_timeit
+from src.ddw.utils.timing_decorators import pytorch_timeit, reset_timing_stats, print_timing_summary
 
 # Configuration pour le multiprocessing avec CUDA
 import torch.multiprocessing as mp
@@ -307,10 +307,11 @@ def fit_model2(
 
 # Exemple d'utilisation :
 if __name__ == "__main__":
+    reset_timing_stats()
     model = fit_model2(
         unet_params_dict= {'chans': 64, 'num_downsample_layers': 3, 'drop_prob': 0.3},
         adam_params_dict= {'lr': 0.04},
-        num_epochs=400,
+        num_epochs=1,
         batch_size=32,
         num_workers=10,
         gpu= [0, 1],
@@ -321,3 +322,4 @@ if __name__ == "__main__":
         check_val_every_n_epochs=1,
         save_model_every_n_epochs=float('inf')
     )
+    print_timing_summary()
