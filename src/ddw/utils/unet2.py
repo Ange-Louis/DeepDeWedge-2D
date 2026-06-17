@@ -82,6 +82,15 @@ class LitUnet2D(pl.LightningModule):
             self.update_normalization()
 
     def on_train_epoch_end(self) -> None:
+        opts = self.optimizers()
+
+        if isinstance(opts, list):
+            opt = opts[0]
+        else:
+            opt = opts
+        current_lr = opt.param_groups[0]['lr']
+        self.log("learning_rate", current_lr, logger= True, on_step=False, on_epoch=True)
+    
         if (
             self.current_epoch + 1
         ) % self.update_subtomo_missing_wedges_every_n_epochs == 0:  # +1 because the epoch indexing starts at 0

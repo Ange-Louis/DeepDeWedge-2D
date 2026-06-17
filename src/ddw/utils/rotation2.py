@@ -18,7 +18,7 @@ def rotate_area(area, rot_angle, output_shape=None, order=3):
             rot_angle = torch.tensor(rot_angle)
         # apply the rotation using rotate
         area = torch.tensor(
-            ndimage.rotate(area, angle=rot_angle, reshape= False, mode='reflect'),
+            ndimage.rotate(area, angle=rot_angle, reshape= False, mode='reflect', order=1),
             device=area.device,
             dtype=area.dtype,
         )
