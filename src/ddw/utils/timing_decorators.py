@@ -1,3 +1,139 @@
+"""
+Décorateurs pour mesurer les temps d'exécution dans DDW2.
+Version compatible avec multiprocessing et DDP.
+"""
+
+import time
+import torch
+import os
+from functools import wraps
+from typing import Callable, Any, Dict, Optional, List
+from dataclasses import dataclass
+from collections import defaultdict
+
+@dataclass
+class TimingResult:
+    function_name: str
+    execution_time: float
+    device: str
+    input_size: Optional[Dict] = None
+    output_size: Optional[Dict] = None
+
+_timing_results: List[TimingResult] = []
+
+def _is_in_worker_process() -> bool:
+    """Vérifie si on est dans un processus worker DataLoader."""
+    # Méthode 1: Vérifier si on est dans un worker DataLoader
+    worker_info = torch.utils.data.get_worker_info()
+    if worker_info is not None:
+        return True
+
+    # Méthode 2: Vérifier si c'est un processus enfant
+    if os.getenv("LOCAL_RANK", "0") != "0":
+        return True
+
+    return False
+
+def pytorch_timeit(func: Callable) -> Callable:
+    """
+    Décorateur PyTorch compatible avec multiprocessing et DDP.
+    Désactive la synchronisation CUDA dans les workers DataLoader.
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs) -> Any:
+        # NE PAS synchroniser CUDA dans les workers DataLoader
+        in_worker = _is_in_worker_process()
+
+        if not in_worker and torch.cuda.is_available():
+            torch.cuda.synchronize()
+
+        start_time = time.perf_counter()
+
+        result = func(*args, **kwargs)
+
+        if not in_worker and torch.cuda.is_available():
+            torch.cuda.synchronize()
+
+        end_time = time.perf_counter()
+        execution_time = end_time - start_time
+
+        # Détection du device (sans synchronisation dans les workers)
+        device = "CPU"
+        input_size = None
+        output_size = None
+
+        all_args = list(args) + list(kwargs.values())
+        for arg in all_args:
+            if isinstance(arg, torch.Tensor):
+                device = f"GPU:{arg.device.index}" if arg.is_cuda else "CPU"
+                if input_size is None:
+                    input_size = {
+                        "shape": list(arg.shape),
+                        "dtype": str(arg.dtype),
+                        "size_bytes": arg.numel() * arg.element_size()
+                    }
+            elif isinstance(arg, dict):
+                for key, value in arg.items():
+                    if isinstance(value, torch.Tensor):
+                        device = f"GPU:{value.device.index}" if value.is_cuda else "CPU"
+                        if input_size is None:
+                            input_size = {}
+                        input_size[key] = {
+                            "shape": list(value.shape),
+                            "dtype": str(value.dtype),
+                            "size_bytes": value.numel() * value.element_size()
+                        }
+
+        if isinstance(result, torch.Tensor):
+            output_size = {
+                "shape": list(result.shape),
+                "dtype": str(result.dtype),
+                "size_bytes": result.numel() * result.element_size()
+            }
+        elif isinstance(result, dict):
+            output_size = {}
+            for key, value in result.items():
+                if isinstance(value, torch.Tensor):
+                    output_size[key] = {
+                        "shape": list(value.shape),
+                        "dtype": str(value.dtype),
+                        "size_bytes": value.numel() * value.element_size()
+                    }
+
+        timing_result = TimingResult(
+            function_name=func.__name__,
+            execution_time=execution_time,
+            device=device,
+            input_size=input_size,
+            output_size=output_size
+        )
+        _timing_results.append(timing_result)
+
+        # N'affiche que sur le processus principal (rank 0)
+        if os.getenv("LOCAL_RANK", "0") == "0":
+            print(f"⏱️  {func.__name__:30} | {device:10} | {execution_time:8.4f}s", end="")
+
+            if input_size:
+                if isinstance(input_size, dict) and "size_bytes" in input_size:
+                    print(f" | Input: {input_size['shape']} ({input_size['size_bytes']/1024/1024:.2f} Mo)", end="")
+                elif isinstance(input_size, dict):
+                    total_bytes = sum(v.get('size_bytes', 0) for v in input_size.values())
+                    print(f" | Input: {total_bytes/1024/1024:.2f} Mo", end="")
+
+            if output_size:
+                if isinstance(output_size, dict) and "size_bytes" in output_size:
+                    print(f" | Output: {output_size['shape']} ({output_size['size_bytes']/1024/1024:.2f} Mo)")
+                elif isinstance(output_size, dict):
+                    total_bytes = sum(v.get('size_bytes', 0) for v in output_size.values())
+                    print(f" | Output: {total_bytes/1024/1024:.2f} Mo")
+                else:
+                    print()
+            else:
+                print()
+
+        return result
+    return wrapper
+
 def print_timing_summary() -> None:
     """
     Affiche un résumé COMPLET de toutes les mesures de timing.
@@ -126,3 +262,7 @@ def print_timing_summary() -> None:
     print(f"  Données de sortie totales: {data_volume['Sortie (Mo)']:.2f} Mo")
     print(f"  Total: {sum(data_volume.values()):.2f} Mo")
     print("=" * 120)
+
+def reset_timing_stats() -> None:
+    global _timing_results
+    _timing_results = []
