@@ -19,13 +19,15 @@ from src.ddw.utils.load_function_args_from_yaml_config import \
 from src.ddw.utils.subtomo_dataset2 import SubtomoDataset
 from src.ddw.utils.unet2 import LitUnet2D
 
+from src.ddw.utils.timing_decorators import pytorch_timeit
+
 
 loader = lambda yaml_config_file: load_function_args_from_yaml_config(
     function=fit_model2, yaml_config_file=yaml_config_file
 )
 callback = conf_callback_factory(loader)
 
-
+@pytorch_timeit
 def fit_model2(
     unet_params_dict: Annotated[
         str,

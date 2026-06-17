@@ -2,8 +2,10 @@ import math
 
 import torch
 from scipy import ndimage, spatial
+from src.ddw.utils.timing_decorators import pytorch_timeit
 
 
+@pytorch_timeit
 def rotate_area(area, rot_angle, output_shape=None, order=3):
     """
     Rotates the 2D tensor 'area' by 'rot_angle' degrees. The rotated tensor, which is typically larger than the original one, is center-cropped such that it has dimensions 'output_shape'. If 'output_shape' is None, the rotated tensor is cropped to the dimensions of 'area'.
