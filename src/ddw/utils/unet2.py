@@ -82,7 +82,14 @@ class LitUnet2D(pl.LightningModule):
             self.update_normalization()
 
     def on_train_epoch_end(self) -> None:
-        # self.log("learning_rate", self.optimizers()[0].param_groups[0]['lr'], prog_bar=True, logger=True)
+        opts = self.optimizers()
+
+        if isinstance(opts, list):
+            opt = opts[0]
+        else:
+            opt = opts
+        current_lr = opt.param_groups[0]['lr']
+        self.log("learning_rate", current_lr, logger= True, on_step=False, on_epoch=True)
 
         if (
             self.current_epoch + 1
@@ -92,19 +99,24 @@ class LitUnet2D(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), **self.adam_params)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=30, factor=0.5)
+
+        max_lr = self.adam_params.get('lr', 1e-3)
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, 
+                                                        max_lr=max_lr, 
+                                                        total_steps=self.trainer.estimated_stepping_batches,
+                                                        pct_start=0.3,
+                                                        div_factor=25.0,
+                                                        final_div_factor=400
+                                                        )
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler" : scheduler,
-                "monitor" : "val_loss",
-                "interval" : "epoch",
+                # "monitor" : "val_loss",
+                "interval" : "step",
+                "frequency" : 1,
             }
         }
-    
-    def on_validation_epoch_end(self) -> None:
-        current_lr = self.optimizers()[0].param_groups[0]['lr']
-        self.log("learning_rate", current_lr, logger= True, on_step=False, on_epoch=True)
 
     def update_subtomo_missing_wedges(self):
         """
