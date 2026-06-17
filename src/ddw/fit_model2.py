@@ -21,6 +21,17 @@ from src.ddw.utils.unet2 import LitUnet2D
 
 from src.ddw.utils.timing_decorators import pytorch_timeit
 
+# Configuration pour le multiprocessing avec CUDA
+import torch.multiprocessing as mp
+
+# Définir le start method AVANT tout autre import PyTorch
+# Cela doit être fait une seule fois, au début du programme
+try:
+    mp.set_start_method('spawn', force=True)
+except RuntimeError:
+    # Si déjà défini, on continue
+    pass
+
 
 loader = lambda yaml_config_file: load_function_args_from_yaml_config(
     function=fit_model2, yaml_config_file=yaml_config_file

@@ -1,10 +1,11 @@
 """
 Décorateurs pour mesurer les temps d'exécution dans DDW2.
-Support CPU et GPU avec synchronisation automatique.
+Version compatible avec multiprocessing et DDP.
 """
 
 import time
 import torch
+import os
 from functools import wraps
 from typing import Callable, Any, Dict, Optional, List
 from dataclasses import dataclass
@@ -12,50 +13,55 @@ from collections import defaultdict
 
 @dataclass
 class TimingResult:
-    """Structure pour stocker les résultats de timing."""
     function_name: str
     execution_time: float
     device: str
     input_size: Optional[Dict] = None
     output_size: Optional[Dict] = None
-    call_count: int = 1
 
-# Liste globale pour stocker tous les résultats
 _timing_results: List[TimingResult] = []
+
+def _is_in_worker_process() -> bool:
+    """Vérifie si on est dans un processus worker DataLoader."""
+    # Méthode 1: Vérifier si on est dans un worker DataLoader
+    worker_info = torch.utils.data.get_worker_info()
+    if worker_info is not None:
+        return True
+
+    # Méthode 2: Vérifier si c'est un processus enfant
+    if os.getenv("LOCAL_RANK", "0") != "0":
+        return True
+
+    return False
 
 def pytorch_timeit(func: Callable) -> Callable:
     """
-    Décorateur PyTorch pour mesurer le temps d'exécution avec support CPU/GPU.
-    Synchronise automatiquement le GPU pour des mesures précises.
-
-    Exemple:
-        @pytorch_timeit
-        def ma_fonction(x):
-            return x * 2
+    Décorateur PyTorch compatible avec multiprocessing et DDP.
+    Désactive la synchronisation CUDA dans les workers DataLoader.
     """
     @wraps(func)
     def wrapper(*args, **kwargs) -> Any:
-        # Synchronisation GPU initiale si disponible
-        if torch.cuda.is_available():
+        # NE PAS synchroniser CUDA dans les workers DataLoader
+        in_worker = _is_in_worker_process()
+
+        if not in_worker and torch.cuda.is_available():
             torch.cuda.synchronize()
 
         start_time = time.perf_counter()
 
         result = func(*args, **kwargs)
 
-        # Synchronisation GPU finale si disponible
-        if torch.cuda.is_available():
+        if not in_worker and torch.cuda.is_available():
             torch.cuda.synchronize()
 
         end_time = time.perf_counter()
         execution_time = end_time - start_time
 
-        # Détection du device et taille des données
+        # Détection du device (sans synchronisation dans les workers)
         device = "CPU"
         input_size = None
         output_size = None
 
-        # Analyser les arguments d'entrée
         all_args = list(args) + list(kwargs.values())
         for arg in all_args:
             if isinstance(arg, torch.Tensor):
@@ -78,7 +84,6 @@ def pytorch_timeit(func: Callable) -> Callable:
                             "size_bytes": value.numel() * value.element_size()
                         }
 
-        # Analyser le résultat
         if isinstance(result, torch.Tensor):
             output_size = {
                 "shape": list(result.shape),
@@ -95,7 +100,6 @@ def pytorch_timeit(func: Callable) -> Callable:
                         "size_bytes": value.numel() * value.element_size()
                     }
 
-        # Stocker le résultat
         timing_result = TimingResult(
             function_name=func.__name__,
             execution_time=execution_time,
@@ -105,37 +109,40 @@ def pytorch_timeit(func: Callable) -> Callable:
         )
         _timing_results.append(timing_result)
 
-        # Affichage formaté
-        print(f"⏱️  {func.__name__:30} | {device:10} | {execution_time:8.4f}s", end="")
+        # N'affiche que sur le processus principal (rank 0)
+        if os.getenv("LOCAL_RANK", "0") == "0":
+            print(f"⏱️  {func.__name__:30} | {device:10} | {execution_time:8.4f}s", end="")
 
-        if input_size:
-            if isinstance(input_size, dict) and "size_bytes" in input_size:
-                print(f" | Input: {input_size['shape']} ({input_size['size_bytes']/1024/1024:.2f} Mo)", end="")
-            elif isinstance(input_size, dict):
-                total_bytes = sum(v.get('size_bytes', 0) for v in input_size.values())
-                print(f" | Input: {total_bytes/1024/1024:.2f} Mo", end="")
+            if input_size:
+                if isinstance(input_size, dict) and "size_bytes" in input_size:
+                    print(f" | Input: {input_size['shape']} ({input_size['size_bytes']/1024/1024:.2f} Mo)", end="")
+                elif isinstance(input_size, dict):
+                    total_bytes = sum(v.get('size_bytes', 0) for v in input_size.values())
+                    print(f" | Input: {total_bytes/1024/1024:.2f} Mo", end="")
 
-        if output_size:
-            if isinstance(output_size, dict) and "size_bytes" in output_size:
-                print(f" | Output: {output_size['shape']} ({output_size['size_bytes']/1024/1024:.2f} Mo)")
-            elif isinstance(output_size, dict):
-                total_bytes = sum(v.get('size_bytes', 0) for v in output_size.values())
-                print(f" | Output: {total_bytes/1024/1024:.2f} Mo")
+            if output_size:
+                if isinstance(output_size, dict) and "size_bytes" in output_size:
+                    print(f" | Output: {output_size['shape']} ({output_size['size_bytes']/1024/1024:.2f} Mo)")
+                elif isinstance(output_size, dict):
+                    total_bytes = sum(v.get('size_bytes', 0) for v in output_size.values())
+                    print(f" | Output: {total_bytes/1024/1024:.2f} Mo")
+                else:
+                    print()
             else:
                 print()
-        else:
-            print()
 
         return result
     return wrapper
 
 def print_timing_summary() -> None:
-    """Affiche un résumé complet des temps mesurés."""
+    """Affiche le résumé des temps (uniquement sur rank 0)."""
+    if os.getenv("LOCAL_RANK", "0") != "0":
+        return
+
     if not _timing_results:
         print("Aucune mesure de temps enregistrée.")
         return
 
-    # Regrouper par fonction
     stats = defaultdict(lambda: {"count": 0, "total": 0.0, "times": [], "devices": set()})
 
     for result in _timing_results:
@@ -160,10 +167,5 @@ def print_timing_summary() -> None:
     print("=" * 100)
 
 def reset_timing_stats() -> None:
-    """Réinitialise les statistiques de timing."""
     global _timing_results
     _timing_results = []
-
-def get_timing_stats() -> List[TimingResult]:
-    """Retourne toutes les statistiques de timing."""
-    return _timing_results.copy()
