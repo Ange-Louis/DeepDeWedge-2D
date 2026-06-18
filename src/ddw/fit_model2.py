@@ -259,7 +259,7 @@ def fit_model2(
     strategy = pl.strategies.DDPStrategy(
         process_group_backend=distributed_backend, 
         find_unused_parameters=False,  # setting this to true gave a warning that it might slow things down
-    ) if len(devices) > 1 else None
+    ) if len(devices) > 1 else "auto"
 
     profiler = PyTorchProfiler(
         dirpath= "testing3/profile",
