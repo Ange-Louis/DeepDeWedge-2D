@@ -8,6 +8,9 @@ from typing import Optional
 
 import pytorch_lightning as pl
 from pytorch_lightning.profilers import PyTorchProfiler
+
+from torch.profiler import tensorboard_trace_handler
+
 import typer
 import torch
 from typer_config import conf_callback_factory
@@ -262,9 +265,12 @@ def fit_model2(
     ) if len(devices) > 1 else "auto"
 
     profiler = PyTorchProfiler(
-        dirpath= "testing3/profile",
-        filename= "fitmodel_profile_result2",
-        export_to_chrome= True
+        profiler_kwargs={
+            "on_trace_ready": tensorboard_trace_handler("testing3/profile/logs_profiling"),
+            "profile_memory": True,
+            "record_shapes": True,
+            "with_stack": True
+            }
     )
     trainer = pl.Trainer(
         max_epochs=num_epochs,
