@@ -13,7 +13,12 @@ dependencies = [
 	"matplotlib",
 	"torchvision",
 	"pytorch-lightning",
-	"scipy"
+	"scipy",
+	"snakeviz",
+	"tuna",
+	"viztracer",
+	"torch-tb-profiler",
+	"tensorboard-plugin-profile"
 	]
 
 [tool.pixi.workspace]

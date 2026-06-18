@@ -11,7 +11,6 @@ from src.ddw.utils.masked_loss import masked_loss
 from src.ddw.utils.missing_wedge2 import get_missing_wedge_mask
 from src.ddw.utils.normalization2 import get_avg_model_input_mean_and_std_from_dataloader
 
-from src.ddw.utils.timing_decorators import pytorch_timeit
 
 
 
@@ -40,13 +39,13 @@ class LitUnet2D(pl.LightningModule):
         # self.ema = ExponentialMovingAverage(self.unet.parameters(), decay=0.995)
         self.save_hyperparameters()
 
-    @pytorch_timeit
+    
     def forward(self, x):
         return self.unet(x.unsqueeze(1)).squeeze(
             1
         )  # unsqueeze to add channel dimension, squeeze to remove it
 
-    @pytorch_timeit
+    
     def training_step(self, batch, batch_idx):
         model_output = self(batch["model_input"])
         loss = masked_loss(
@@ -66,7 +65,7 @@ class LitUnet2D(pl.LightningModule):
         )
         return loss
 
-    @pytorch_timeit
+    
     def validation_step(self, batch, batch_idx):
         model_output = self(batch["model_input"])
         loss = masked_loss(
@@ -112,7 +111,7 @@ class LitUnet2D(pl.LightningModule):
     #     if scheduler is not None:
     #         scheduler.step()
 
-    @pytorch_timeit
+    
     def update_subtomo_missing_wedges(self):
         """
         Update the missing wedges of model input subtomos.
@@ -169,7 +168,7 @@ class LitUnet2D(pl.LightningModule):
         if self.trainer.val_dataloaders is not None:
             val_set.rotate_subtomos = True
 
-    @pytorch_timeit
+    
     def update_normalization(self):
         """
         Updates the average model input mean and standard deviation used to normalize the sub-tomograms.

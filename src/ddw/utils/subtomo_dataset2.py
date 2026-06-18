@@ -15,7 +15,6 @@ from src.ddw.utils.rotation2 import rotate_area
 
 from src.ddw.utils.mrctools2 import save_mrc_data
 
-from src.ddw.utils.timing_decorators import pytorch_timeit
 
 BASE_SEED = 888
 
@@ -82,7 +81,7 @@ class SubtomoDataset(Dataset):
     def __len__(self):
         return len(self.subtomo0_files)
 
-    @pytorch_timeit
+    
     def __getitem__(self, index):
         # load subtomos
         subtomo0_file = str(self.subtomo0_files[index])
@@ -140,5 +139,3 @@ class SubtomoDataset(Dataset):
         }
         return item
 
-
-# %%
