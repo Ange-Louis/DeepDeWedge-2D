@@ -1,6 +1,10 @@
 import time
 from functools import update_wrapper
-import torch.multiprocessing as mp
+import os
+import json
+import uuid
+import tempfile
+import atexit
 
 try:
     import torch
@@ -8,57 +12,50 @@ try:
 except ImportError:
     HAS_TORCH = False
 
-_manager = None
-_STATS_REGISTRY = None
+# Abandon du mp.Manager() qui est incompatible avec les "daemons" PyTorch.
+# Utilisation de dictionnaires locaux et de sauvegarde sur disque.
+_STATS_REGISTRY = {}
+_WORKER_ID = str(uuid.uuid4())
+_STATS_DIR = os.path.join(tempfile.gettempdir(), "ddw_chrono_stats")
 
-def _get_registry():
-    """
-    Initialisation paresseuse du Manager partagé
-    """
-    global _manager, _STATS_REGISTRY
-    if _STATS_REGISTRY is None:
-        try:
-            mp.set_start_method('spawn', force=True)
-        except RuntimeError:
-            pass
+os.makedirs(_STATS_DIR, exist_ok=True)
 
-        _manager = mp.Manager()
-        _STATS_REGISTRY = _manager.dict()
-        
-    return _STATS_REGISTRY
+def _save_local_stats():
+    """Sauvegarde les statistiques locales de CE processus dans un fichier JSON."""
+    if not _STATS_REGISTRY:
+        return
+    filepath = os.path.join(_STATS_DIR, f"stats_{_WORKER_ID}.json")
+    try:
+        with open(filepath, "w") as f:
+            json.dump(_STATS_REGISTRY, f)
+    except Exception:
+        pass
+
+# S'assure que chaque worker PyTorch enregistre ses stats juste avant de se fermer
+atexit.register(_save_local_stats)
 
 class Chrono:
     def __init__(self, function):
-        # ⚠️ Le code ici est lu à l'import ! 
-        # On stocke juste les infos, ON NE TOUCHE PAS au Manager ici.
         self.function = function
         self._stats_key = function.__name__
         update_wrapper(self, function)
 
     def _init_in_registry(self):
-        """
-        Gère l'initialisation des stats dans le registre uniquement quand c'est nécessaire.
-        """
-        registry = _get_registry()
-        if self._stats_key not in registry:
-            registry[self._stats_key] = {
+        # Initialisation purement locale, sans aucun processus d'arrière-plan
+        if self._stats_key not in _STATS_REGISTRY:
+            _STATS_REGISTRY[self._stats_key] = {
                 "period": 0.0,
                 "calls": 0,
                 "device": "cpu"
             }
-        return registry
+        return _STATS_REGISTRY
 
     def _detect_device(self, registry, *args, **kwds):
-        """
-        Détecte si l'exécution se fait sur CPU ou GPU
-        """
         stats = registry[self._stats_key]
-
         if not HAS_TORCH:
             stats["device"] = "cpu (PyTorch non installé)"
         else:
             device_found = False
-            # Vérifie les tenseurs dans les arguments 
             for item in args + tuple(kwds.values()):
                 if isinstance(item, torch.Tensor):
                     stats["device"] = str(item.device)
@@ -66,63 +63,75 @@ class Chrono:
                     break
 
             if not device_found:
-                # Si aucun tenseur dans les args, vérifie si CUDA est utilisé
                 if torch.cuda.is_available():
                     stats["device"] = "cuda (disponible, mais tenseurs non détectés dans les args)"
                 else: 
                     stats["device"] = "cpu"
 
-        # Réassignation indispensable avec le mp.Manager
-        registry[self._stats_key] = stats
-
     def __call__(self, *args, **kwds):
-        """
-        L'architecture du wrapper pour une classe.
-        """
-        # On initialise/récupère le registre UNIQUEMENT quand la fonction est appelée
         registry = self._init_in_registry()
-
+        
         start = time.time()
-        # Exécute la fonction stockée dans l'instance.
         result = self.function(*args, **kwds)
         end = time.time()
 
-        # Mise à jour de l'état
         stats = registry[self._stats_key]
         stats["period"] += (end - start)
         stats["calls"] += 1
-        
-        # Réassignation indispensable avant de lancer _detect_device
-        registry[self._stats_key] = stats
 
         self._detect_device(registry, *args, **kwds)
+
+        # Sauvegarde périodique (tous les 50 appels) au cas où le worker 
+        # PyTorch serait forcé de se fermer brutalement sans appeler 'atexit'.
+        if stats["calls"] % 50 == 0:
+            _save_local_stats()
 
         return result
     
     def print_stats(self):
-        """
-        Affiche les stats.
-        """
-        registry = self._init_in_registry()
-        stats = registry[self._stats_key]
+        # Forcer la sauvegarde des stats locales du processus principal avant de tout lire
+        _save_local_stats()
 
-        avg = stats["period"] / stats["calls"] if stats["calls"] > 0 else 0
+        total_period = 0.0
+        total_calls = 0
+        last_device = "cpu"
+
+        # Lecture et agrégation de tous les fichiers JSON laissés par les différents workers PyTorch
+        for filename in os.listdir(_STATS_DIR):
+            if filename.endswith(".json"):
+                filepath = os.path.join(_STATS_DIR, filename)
+                try:
+                    with open(filepath, "r") as f:
+                        data = json.load(f)
+                        if self._stats_key in data:
+                            total_period += data[self._stats_key]["period"]
+                            total_calls += data[self._stats_key]["calls"]
+                            last_device = data[self._stats_key]["device"]
+                except Exception:
+                    continue
+
+        avg = total_period / total_calls if total_calls > 0 else 0
         print (
             f"Chrono Stats pour '\033[34m{self.function.__name__}\033[0m':\n"
-            f"\t- Temps total: \033[36m{stats['period']:.6f}\033[0m s\n"
-            f"\t- Appels: \033[36m{stats['calls']}\033[0m\n"
+            f"\t- Temps total: \033[36m{total_period:.6f}\033[0m s\n"
+            f"\t- Appels totaux (tous workers confondus): \033[36m{total_calls}\033[0m\n"
             f"\t- Temps moyen/appel: \033[36m{avg:.6f}\033[0m\n"
-            f"\t- Device: \033[36m{stats['device']}\033[0m"
+            f"\t- Dernier Device détecté: \033[36m{last_device}\033[0m"
         )
 
-
     def reset_stats(self):
-        """
-        Réinitialise les stats et le flag (pour un nouveau run)
-        """
         registry = self._init_in_registry()
         registry[self._stats_key] = {
             "period": 0.0,
             "calls": 0,
             "device": "cpu"
         }
+        _save_local_stats()
+        
+        # Nettoyer les fichiers JSON existants pour faire table rase
+        for filename in os.listdir(_STATS_DIR):
+            if filename.endswith(".json"):
+                try:
+                    os.remove(os.path.join(_STATS_DIR, filename))
+                except Exception:
+                    pass
