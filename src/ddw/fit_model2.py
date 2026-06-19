@@ -39,7 +39,7 @@ loader = lambda yaml_config_file: load_function_args_from_yaml_config(
 )
 callback = conf_callback_factory(loader)
 
-
+@Chrono
 def fit_model2(
     unet_params_dict: Annotated[
         str,
@@ -294,7 +294,7 @@ def fit_model2(
         dataset=fitting_dataset,
         batch_size=batch_size,
         num_workers=num_workers,
-        persistent_workers=True,
+        persistent_workers=(num_workers>0),
         pin_memory=True,
     )
     if val_data_exists:
@@ -317,19 +317,21 @@ def fit_model2(
         val_dataloaders=val_dataloader,
     )
 
-    rotate_area.print_stats()
 
 # Exemple d'utilisation :
 if __name__ == "__main__":
     # profiler= cProfile.Profile()
     # profiler.enable()
 
+    rotate_area.reset_stats()
+    fit_model2.reset_stats()
+
     model = fit_model2(
         unet_params_dict= {'chans': 64, 'num_downsample_layers': 3, 'drop_prob': 0.3},
         adam_params_dict= {'lr': 0.04},
         num_epochs=1,
         batch_size=16,
-        num_workers=10,
+        num_workers=0,
         gpu= 0,
         subtomo_size=128,
         mw_angle=50,
@@ -339,6 +341,8 @@ if __name__ == "__main__":
         save_model_every_n_epochs=float('inf')
     )
 
+    rotate_area.print_stats()
+    fit_model2.print_stats()
     
     # profiler.disable()
     # profiler.dump_stats("testing3/profile/profiling_results.prof")
