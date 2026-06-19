@@ -8,11 +8,24 @@ try:
 except:
 	HAS_TORCH= False
 
-# Initialise un manager pour partager les stats entre processus
-if mp.get_start_method() != 'spawn':
-	mp.set_start_method('spawn', force=True)
-_manager = mp.Manager()
-_STATS_REGISTRY = _manager.dict()
+_manager = None
+_STATS_REGISTRY = None
+
+def _get_registry():
+	"""
+	Initialisation paresseuse du Manager partagé
+	"""
+	global _manager, _STATS_REGISTRY
+	if _STATS_REGISTRY is None:
+		try:
+			mp.set_start_method('spawn', force=True)
+		except RuntimeError:
+			pass
+
+		_manager = mp.Manager()
+		_STATS_REGISTRY= _manager.dict()
+		
+		return _STATS_REGISTRY
 
 class Chrono:
 	def __init__(self, function):
@@ -21,10 +34,11 @@ class Chrono:
 
 		# Utilise le nom de la fonction comme clef unique
 		self._stats_key= function.__name__
+		registry = _get_registry()
 		
 		# Initialise les stats dans le registre global si elles n'existent pas
-		if self._stats_key not in _STATS_REGISTRY:
-			_STATS_REGISTRY[self._stats_key]= {
+		if self._stats_key not in registry:
+			registry[self._stats_key]= {
 				"period": 0.0,
 				"calls": 0,
 				"device": "cpu",
@@ -38,22 +52,30 @@ class Chrono:
 		"""
 		Détecte si l'exéctution se fait sur CPU ou GPU
 		"""
+		registry = _get_registry()
+		stats = registry[self._stats_key]
+
 		if not HAS_TORCH:
-			_STATS_REGISTRY[self._stats_key]["device"] = "cpu (PyTorch non installé)"
-			return
-		
-		# Vérifie les tenseurs dans les arguments 
-		for item in args + tuple(kwds.values()):
-			if isinstance(item, torch.Tensor):
-				_STATS_REGISTRY[self._stats_key]["device"] = str(item.device)
-				return
-			
-		# Si aucun tenseur dans les args, vérifie si CUDA est utilisé
-		if torch.cuda.is_available():
-			# Vérifie si des tenseurs ont été créés sur GPU dans la fonction
-			_STATS_REGISTRY[self._stats_key]["device"] = "cuda (disponible, mais tenseurs non détectés dans les args)"
-		else: 
-			_STATS_REGISTRY[self._stats_key]["device"] = "cpu"
+			stats["device"] = "cpu (PyTorch non installé)"
+		else:
+			device_found= False
+			# Vérifie les tenseurs dans les arguments 
+			for item in args + tuple(kwds.values()):
+				if isinstance(item, torch.Tensor):
+					stats["device"] = str(item.device)
+					device_found = True
+					break
+
+			if not device_found:
+				# Si aucun tenseur dans les args, vérifie si CUDA est utilisé
+				if torch.cuda.is_available():
+					# Vérifie si des tenseurs ont été créés sur GPU dans la fonction
+					stats["device"] = "cuda (disponible, mais tenseurs non détectés dans les args)"
+				else: 
+					stats["device"] = "cpu"
+
+		# Réassignation indispensable avec le mp.Manager
+		registry[self._stats_key] = stats
 
 	def __call__(self, *args, **kwds):
 		"""
@@ -65,9 +87,14 @@ class Chrono:
 		end= time.time()
 
 		# Mise à jour l'état de l'instance
-		stats = _STATS_REGISTRY[self._stats_key]
+		registry = _get_registry()
+		stats = registry[self._stats_key]
+
 		stats["period"] += (end-start)
 		stats["calls"] += 1
+
+		# Réassignation indispensable avec le mp.Manager
+		registry[self._stats_key] = stats
 
 		self._detect_device(*args, **kwds)
 
@@ -77,7 +104,9 @@ class Chrono:
 		"""
 		Affiche les stats.
 		"""
-		stats = _STATS_REGISTRY[self._stats_key]
+		registry = _get_registry()
+		stats = registry[self._stats_key]
+
 		if stats["printed"]:
 			return
 
@@ -91,12 +120,16 @@ class Chrono:
 		)
 		stats["printed"]= True
 
+		# Réassignation indispensable avec le mp.Manager
+		registry[self._stats_key] = stats
+
 
 	def reset_stats(self):
 		"""
 		Réinitialise les stats et le flag (pour un nouveau run)
 		"""
-		_STATS_REGISTRY[self._stats_key] = {
+		registry = _get_registry()
+		registry[self._stats_key] = {
 			"period": 0.0,
 			"calls": 0,
 			"device": "cpu",
