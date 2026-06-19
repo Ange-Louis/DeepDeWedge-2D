@@ -44,8 +44,7 @@ class Chrono:
             registry[self._stats_key] = {
                 "period": 0.0,
                 "calls": 0,
-                "device": "cpu",
-                "printed": False
+                "device": "cpu"
             }
         return registry
 
@@ -107,9 +106,6 @@ class Chrono:
         registry = self._init_in_registry()
         stats = registry[self._stats_key]
 
-        if stats["printed"]:
-            return
-
         avg = stats["period"] / stats["calls"] if stats["calls"] > 0 else 0
         print (
             f"Chrono Stats pour '\033[34m{self.function.__name__}\033[0m':\n"
@@ -118,10 +114,7 @@ class Chrono:
             f"\t- Temps moyen/appel: \033[36m{avg:.6f}\033[0m\n"
             f"\t- Device: \033[36m{stats['device']}\033[0m"
         )
-        stats["printed"] = True
 
-        # Réassignation indispensable avec le mp.Manager
-        registry[self._stats_key] = stats
 
     def reset_stats(self):
         """
@@ -131,6 +124,5 @@ class Chrono:
         registry[self._stats_key] = {
             "period": 0.0,
             "calls": 0,
-            "device": "cpu",
-            "printed":  False
+            "device": "cpu"
         }

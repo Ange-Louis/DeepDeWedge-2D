@@ -317,6 +317,7 @@ def fit_model2(
         val_dataloaders=val_dataloader,
     )
 
+    rotate_area.print_stats()
 
 # Exemple d'utilisation :
 if __name__ == "__main__":
@@ -338,6 +339,6 @@ if __name__ == "__main__":
         save_model_every_n_epochs=float('inf')
     )
 
-    rotate_area.print_stats()
+    
     # profiler.disable()
     # profiler.dump_stats("testing3/profile/profiling_results.prof")

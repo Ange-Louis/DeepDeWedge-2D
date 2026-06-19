@@ -101,7 +101,7 @@ class SubtomoDataset(Dataset):
                 rot_angle=rot_angle,
                 output_shape=2 * [self.crop_subtomos_to_size],
             )
-            rotate_area.print_stats()
+
             
             # save_mrc_data(subtomo0, f"testing/subtomos_rotated/subtomo0/{Path(subtomo0_file).stem}.mrc")
             # save_mrc_data(subtomo1, f"testing/subtomos_rotated/subtomo1/{Path(subtomo1_file).stem}.mrc")
