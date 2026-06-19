@@ -23,17 +23,16 @@ from src.ddw.utils.load_function_args_from_yaml_config import \
 from src.ddw.utils.subtomo_dataset2 import SubtomoDataset
 from src.ddw.utils.unet2 import LitUnet2D
 
-# Configuration pour le multiprocessing avec CUDA
+import cProfile
+from src.ddw.TimeWrapper import Chrono
+from src.ddw.utils.rotation2 import rotate_area
 import torch.multiprocessing as mp
 
-# Définir le start method AVANT tout autre import PyTorch
-# Cela doit être fait une seule fois, au début du programme
+
 try:
     mp.set_start_method('spawn', force=True)
 except RuntimeError:
-    # Si déjà défini, on continue
     pass
-
 
 loader = lambda yaml_config_file: load_function_args_from_yaml_config(
     function=fit_model2, yaml_config_file=yaml_config_file
@@ -264,14 +263,16 @@ def fit_model2(
         find_unused_parameters=False,  # setting this to true gave a warning that it might slow things down
     ) if len(devices) > 1 else "auto"
 
-    profiler = PyTorchProfiler(
-        profiler_kwargs={
-            "on_trace_ready": tensorboard_trace_handler("testing3/profile/logs_profiling"),
-            "profile_memory": True,
-            "record_shapes": True,
-            "with_stack": True
-            }
-    )
+    # profiler = PyTorchProfiler(
+    #     dirpath="testing3/profile/logs_profiling",
+    #     filename="profiler_summary",
+    #     profiler_kwargs={
+    #         "on_trace_ready": tensorboard_trace_handler("testing3/profile/logs_profiling"),
+    #         "profile_memory": True,
+    #         "record_shapes": True,
+    #         "with_stack": True
+    #         }
+    # )
     trainer = pl.Trainer(
         max_epochs=num_epochs,
         accelerator="gpu",
@@ -284,7 +285,7 @@ def fit_model2(
         logger=logger,
         callbacks=callbacks,
         detect_anomaly=True,
-        profiler=profiler,
+        # profiler=profiler,
         #resume_from_checkpoint=resume_from_checkpoint,  # for pytorch-lightning < 2.0
     )
 
@@ -319,6 +320,9 @@ def fit_model2(
 
 # Exemple d'utilisation :
 if __name__ == "__main__":
+    # profiler= cProfile.Profile()
+    # profiler.enable()
+
     model = fit_model2(
         unet_params_dict= {'chans': 64, 'num_downsample_layers': 3, 'drop_prob': 0.3},
         adam_params_dict= {'lr': 0.04},
@@ -333,3 +337,7 @@ if __name__ == "__main__":
         check_val_every_n_epochs=1,
         save_model_every_n_epochs=float('inf')
     )
+
+    rotate_area.print_stats()
+    # profiler.disable()
+    # profiler.dump_stats("testing3/profile/profiling_results.prof")

@@ -17,8 +17,9 @@ dependencies = [
 	"snakeviz",
 	"tuna",
 	"viztracer",
+	"triton-viz",
 	"torch-tb-profiler",
-	"tensorboard-plugin-profile"
+	"tensorboard-plugin-profile",
 	]
 
 [tool.pixi.workspace]

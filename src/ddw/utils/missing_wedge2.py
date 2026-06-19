@@ -51,4 +51,5 @@ def get_rotated_missing_wedge_mask(
         .float()
         .to(device)
     )
+    rotate_area.print_stats()
     return mw_mask
