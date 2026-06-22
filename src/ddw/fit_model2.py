@@ -27,7 +27,7 @@ import cProfile
 from src.ddw.TimeWrapper import Chrono
 from src.ddw.utils.rotation2 import rotate_area
 import torch.multiprocessing as mp
-
+from torch.profiler import profile, record_function, ProfilerActivity, schedule
 
 try:
     mp.set_start_method('spawn', force=True)
@@ -39,7 +39,7 @@ loader = lambda yaml_config_file: load_function_args_from_yaml_config(
 )
 callback = conf_callback_factory(loader)
 
-@Chrono
+# @Chrono
 def fit_model2(
     unet_params_dict: Annotated[
         str,
@@ -58,7 +58,7 @@ def fit_model2(
     num_epochs: Annotated[int, typer.Option(help="Number of epochs to fit the model.")],
     batch_size: Annotated[int, typer.Option(help="Batch size for the optimizer.")],
     subtomo_size: Annotated[
-        int, typer.Option(help="Size of the cubic subtomograms used for model fitting.")
+        int, typer.Option(help="Size of the square subtomograms used for model fitting.")
     ],
     mw_angle: Annotated[
         float, typer.Option(help="Width of the missing wedge in degrees.")
@@ -263,16 +263,18 @@ def fit_model2(
         find_unused_parameters=False,  # setting this to true gave a warning that it might slow things down
     ) if len(devices) > 1 else "auto"
 
-    # profiler = PyTorchProfiler(
-    #     dirpath="testing3/profile/logs_profiling",
-    #     filename="profiler_summary",
-    #     profiler_kwargs={
-    #         "on_trace_ready": tensorboard_trace_handler("testing3/profile/logs_profiling"),
-    #         "profile_memory": True,
-    #         "record_shapes": True,
-    #         "with_stack": True
-    #         }
-    # )
+    profiler = PyTorchProfiler(
+        dirpath="testing3/profile/logs_profiling_num=16_gpu=0_batch=32",
+        filename="profiler_summary",
+        sort_by_key="cuda_time_total",
+        profiler_kwargs={
+            "on_trace_ready": tensorboard_trace_handler("testing3/profile/logs_profiling_num=16_gpu=0_batch=32"),
+            "profile_memory": True,
+            "record_shapes": True,
+            "with_stack": True,
+
+        }
+    )
     trainer = pl.Trainer(
         max_epochs=num_epochs,
         accelerator="gpu",
@@ -285,7 +287,7 @@ def fit_model2(
         logger=logger,
         callbacks=callbacks,
         detect_anomaly=True,
-        # profiler=profiler,
+        profiler=profiler,
         #resume_from_checkpoint=resume_from_checkpoint,  # for pytorch-lightning < 2.0
     )
 
@@ -295,7 +297,7 @@ def fit_model2(
         batch_size=batch_size,
         num_workers=num_workers,
         persistent_workers=(num_workers>0),
-        pin_memory=True,
+        pin_memory=True
     )
     if val_data_exists:
         val_dataloader = DataLoader(
@@ -323,15 +325,16 @@ if __name__ == "__main__":
     # profiler= cProfile.Profile()
     # profiler.enable()
 
-    rotate_area.reset_stats()
-    fit_model2.reset_stats()
+    # rotate_area.reset_stats()
+    # SubtomoDataset.reset_stats()
+    # fit_model2.reset_stats()
 
     model = fit_model2(
         unet_params_dict= {'chans': 64, 'num_downsample_layers': 3, 'drop_prob': 0.3},
         adam_params_dict= {'lr': 0.04},
         num_epochs=1,
-        batch_size=16,
-        num_workers=0,
+        batch_size=32,
+        num_workers=8,
         gpu= 0,
         subtomo_size=128,
         mw_angle=50,
@@ -341,8 +344,10 @@ if __name__ == "__main__":
         save_model_every_n_epochs=float('inf')
     )
 
-    rotate_area.print_stats()
-    fit_model2.print_stats()
+
+    # rotate_area.print_stats()
+    # SubtomoDataset.print_stats()
+    # fit_model2.print_stats()
     
     # profiler.disable()
     # profiler.dump_stats("testing3/profile/profiling_results.prof")

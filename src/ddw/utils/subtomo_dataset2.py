@@ -15,6 +15,8 @@ from src.ddw.utils.rotation2 import rotate_area
 
 from src.ddw.utils.mrctools2 import save_mrc_data
 
+from src.ddw.TimeWrapper import Chrono
+
 
 BASE_SEED = 888
 
@@ -33,7 +35,7 @@ def safe_load(file_path, max_retries=3, delay=1):
             time.sleep(delay)  # Wait before retrying
 
 
-
+# @Chrono
 class SubtomoDataset(Dataset):
     """
     A torch dataset which produces the input-target sub-tomogram pairs used for model fitting. The directory 'subtomo_dir' must have the same structure as the output of the 'ddw prepare-data' command.
