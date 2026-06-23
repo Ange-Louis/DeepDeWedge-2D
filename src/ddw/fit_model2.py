@@ -248,7 +248,7 @@ def fit_model2(
     strategy = pl.strategies.DDPStrategy(
         process_group_backend=distributed_backend, 
         find_unused_parameters=False,  # setting this to true gave a warning that it might slow things down
-    ) if len(devices) > 1 else None
+    ) if len(devices) > 1 else "auto"
     trainer = pl.Trainer(
         max_epochs=num_epochs,
         accelerator="gpu",
@@ -300,8 +300,8 @@ if __name__ == "__main__":
         adam_params_dict= {'lr': 4e-2},
         num_epochs=400,
         batch_size=32,
-        num_workers=10,
-        gpu= [0, 1],
+        num_workers=8,
+        gpu= 0,
         subtomo_size=128,
         mw_angle=50,
         subtomo_dir="testing/subtomos",
