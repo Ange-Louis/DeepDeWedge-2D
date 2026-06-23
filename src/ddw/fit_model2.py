@@ -190,6 +190,7 @@ def fit_model2(
         mw_angle=mw_angle,
         rotate_subtomos=rotate_fitting_subtomos,
         deterministic_rotations=False,
+        for_training= True,
     )
     if val_data_exists:
         val_dataset = SubtomoDataset(
@@ -302,10 +303,10 @@ if __name__ == "__main__":
         batch_size=32,
         num_workers=8,
         gpu= 0,
-        subtomo_size=128,
+        subtomo_size=96,
         mw_angle=50,
         subtomo_dir="testing/subtomos",
-        project_dir="testing2",
+        project_dir="testing4",
         check_val_every_n_epochs=1,
         save_model_every_n_epochs=float('inf'),
     )

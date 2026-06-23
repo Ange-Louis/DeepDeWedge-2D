@@ -10,6 +10,7 @@ from src.ddw.utils.fourier2 import apply_fourier_mask_to_tomo
 from src.ddw.utils.masked_loss import masked_loss
 from src.ddw.utils.missing_wedge2 import get_missing_wedge_mask
 from src.ddw.utils.normalization2 import get_avg_model_input_mean_and_std_from_dataloader
+from src.ddw.utils.rotation2 import rotate_area
 
 
 class LitUnet2D(pl.LightningModule):
@@ -43,12 +44,28 @@ class LitUnet2D(pl.LightningModule):
         )  # unsqueeze to add channel dimension, squeeze to remove it
 
     def training_step(self, batch, batch_idx):
-        model_output = self(batch["model_input"])
+        # STEP 1: Correction without rotation/mask
+        with torch.no_grad(): # No optimisation here, just inference
+            subtomo0_corrected = self(batch["subtomo0_original"])
+            subtomo1_corrected = self(batch["subtomo1_original"])
+
+        # STEP 2: Rotation + Mask
+        rot_angle = batch["rot_angle"]
+        mw_mask = batch["mw_mask"]
+        rot_mw_mask = batch["rot_mw_mask"]
+
+        subtomo0_corrected_rotated = rotate_area(subtomo0_corrected, rot_angle= rot_angle, output_shape= 2*[self.unet_params["crop_subtomos_to_size"]])
+        subtomo1_corrected_rotated = rotate_area(subtomo1_corrected, rot_angle= rot_angle, output_shape= 2*[self.unet_params["crop_subtomos_to_size"]])
+
+        model_input = apply_fourier_mask_to_tomo(subtomo0_corrected_rotated, rot_mw_mask)
+
+        # STEP 3: Second correction + loss 
+        model_output = self(model_input)
         loss = masked_loss(
             model_output=model_output,
-            target=batch["model_target"],
-            rot_mw_mask=batch["rot_mw_mask"],
-            mw_mask=batch["mw_mask"],
+            target=subtomo1_corrected_rotated,
+            rot_mw_mask= rot_mw_mask,
+            mw_mask= mw_mask,
             mw_weight= self.mw_weight,
         )
         self.log(

@@ -45,8 +45,10 @@ class SubtomoDataset(Dataset):
         crop_subtomos_to_size,
         rotate_subtomos=True,
         deterministic_rotations=False,
+        for_training= False,
     ):
         super().__init__()
+        self.for_training = for_training
         self.subtomo_dir = subtomo_dir
         self.crop_subtomos_to_size = crop_subtomos_to_size
         self.mw_angle = mw_angle
@@ -83,57 +85,68 @@ class SubtomoDataset(Dataset):
     def __getitem__(self, index):
         # load subtomos
         subtomo0_file = str(self.subtomo0_files[index])
-        subtomo0 = safe_load(subtomo0_file)
+        subtomo0_original = safe_load(subtomo0_file)
         subtomo1_file = str(self.subtomo1_files[index])
-        subtomo1 = safe_load(subtomo1_file)
-        # rotate subtomos
-        if self.rotate_subtomos == True:
+        subtomo1_original = safe_load(subtomo1_file)
+
+
+        if self.rotate_subtomos:
+            # set rotate subtomos
             rot_angle = self._sample_rot_angle(index)
-            subtomo0 = rotate_area(
-                subtomo0,
-                rot_angle=rot_angle,
-                output_shape=2 * [self.crop_subtomos_to_size],
-            )
-            subtomo1 = rotate_area(
-                subtomo1,
-                rot_angle=rot_angle,
-                output_shape=2 * [self.crop_subtomos_to_size],
-            )
 
-            # save_mrc_data(subtomo0, f"testing/subtomos_rotated/subtomo0/{Path(subtomo0_file).stem}.mrc")
-            # save_mrc_data(subtomo1, f"testing/subtomos_rotated/subtomo1/{Path(subtomo1_file).stem}.mrc")
-
-
-            # add missing wedge
+            # compute missing wedge
             mw_mask = get_missing_wedge_mask(
                 grid_size=2 * [self.crop_subtomos_to_size],
                 mw_angle=self.mw_angle,
-                device=subtomo0.device,
+                device=subtomo0_original.device,
             )
             rot_mw_mask = get_rotated_missing_wedge_mask(
                 grid_size=2 * [self.crop_subtomos_to_size],
                 mw_angle=self.mw_angle,
                 rot_angle=rot_angle,
-                device=subtomo0.device,
+                device=subtomo0_original.device,
             )
         else:
+            rot_angle = 0
             mw_mask = get_missing_wedge_mask(
-                grid_size=subtomo0.shape,
+                grid_size=subtomo0_original.shape,
                 mw_angle=self.mw_angle,
-                device=subtomo0.device,
+                device=subtomo0_original.device,
             )
             rot_mw_mask = mw_mask
-            rot_angle = 0
 
-        model_input = apply_fourier_mask_to_tomo(subtomo0, mw_mask)
-        item = {
-            "model_input": model_input,
-            "model_target": subtomo1,
+        if self.for_training:
+            # TRAINING MODE
+            return{
+            "subtomo0_original": subtomo0_original,
+            "subtomo1_original": subtomo1_original, 
             "mw_mask": mw_mask,
             "rot_mw_mask": rot_mw_mask,
             "subtomo0_file": subtomo0_file,
             "subtomo1_file": subtomo1_file,
+            "rot_angle": rot_angle,  
+            }
+        else:
+            # VALIDATION MODE
+            subtomo0 = rotate_area(
+                subtomo0_original,
+                rot_angle= rot_angle,
+                output_shape= 2*[self.crop_subtomos_to_size],
+            )
+            subtomo1 = rotate_area(
+                subtomo1_original,
+                rot_angle= rot_angle,
+                output_shape= 2*[self.crop_subtomos_to_size],
+            )
+        model_input = apply_fourier_mask_to_tomo(subtomo0, mw_mask)
+        item = {
+            "model_input": model_input,
+            "model_target": subtomo1,
             "rot_angle": rot_angle,
+            "mw_mask": mw_mask,
+            "rot_mw_mask": rot_mw_mask,
+            "subtomo0_file": subtomo0_file,
+            "subtomo1_file": subtomo1_file,
         }
         return item
 
