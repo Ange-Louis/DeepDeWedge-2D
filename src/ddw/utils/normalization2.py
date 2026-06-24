@@ -70,7 +70,7 @@ def get_avg_model_input_mean_and_std_from_dataloader(dataloader, batches=None, v
             subtomo0_rotated = rotate_area(
                 batch["subtomo0_original"],
                 rot_angle= batch["rot_angle"],
-                output_shape= 2*batch["crop_subtomos_to_size"],
+                output_shape= 2*[int(batch["crop_subtomos_to_size"][0].item())],
             )
 
             model_input = apply_fourier_mask_to_tomo(subtomo0_rotated, batch["mw_mask"])

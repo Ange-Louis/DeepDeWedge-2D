@@ -305,8 +305,7 @@ if __name__ == "__main__":
         gpu= 1,
         subtomo_size=128,
         mw_angle=50,
-        subtomo_dir="testing/subtomos",
-        project_dir="testing4",
+        project_dir="testing_for_Isonet2",
         check_val_every_n_epochs=1,
         save_model_every_n_epochs=float('inf'),
     )

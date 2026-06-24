@@ -148,6 +148,7 @@ class SubtomoDataset(Dataset):
             "rot_mw_mask": rot_mw_mask,
             "subtomo0_file": subtomo0_file,
             "subtomo1_file": subtomo1_file,
+            "crop_subtomos_to_size": self.crop_subtomos_to_size,
         }
         return item
 

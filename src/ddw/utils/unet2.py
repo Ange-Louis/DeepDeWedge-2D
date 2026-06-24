@@ -44,18 +44,24 @@ class LitUnet2D(pl.LightningModule):
         )  # unsqueeze to add channel dimension, squeeze to remove it
 
     def training_step(self, batch, batch_idx):
-        # STEP 1: Correction without rotation/mask
+        # STEP 1: Generate hybrid ubtomos (original outside MW + predicted inside MW) 
         with torch.no_grad(): # No optimisation here, just inference
-            subtomo0_corrected = self(batch["subtomo0_original"])
-            subtomo1_corrected = self(batch["subtomo1_original"])
+            subtomo0_predicted = self(batch["subtomo0_original"])
+            subtomo1_predicted = self(batch["subtomo1_original"])
+
+            var_orig = torch.var(batch["subtomo0_original"] - batch["subtomo1_original"], dim= [-1, -2], keepdim= True)
+            var_pred = torch.var(subtomo0_predicted - subtomo1_predicted, dim= [-1, -2], keepdim= True)
+
+            var_noise = torch.clamp(var_orig - var_pred, min= 1e-6) / 2
+            
 
         # STEP 2: Rotation + Mask
         rot_angle = batch["rot_angle"]
         mw_mask = batch["mw_mask"]
         rot_mw_mask = batch["rot_mw_mask"]
 
-        subtomo0_corrected_rotated = rotate_area(subtomo0_corrected, rot_angle= rot_angle, output_shape= 2*[batch["crop_subtomos_to_size"]])
-        subtomo1_corrected_rotated = rotate_area(subtomo1_corrected, rot_angle= rot_angle, output_shape= 2*[batch["crop_subtomos_to_size"]])
+        subtomo0_corrected_rotated = rotate_area(subtomo0_corrected, rot_angle= rot_angle, output_shape= 2*[int(batch["crop_subtomos_to_size"][0].item())])
+        subtomo1_corrected_rotated = rotate_area(subtomo1_corrected, rot_angle= rot_angle, output_shape= 2*[int(batch["crop_subtomos_to_size"][0].item())])
 
         model_input = apply_fourier_mask_to_tomo(subtomo0_corrected_rotated, rot_mw_mask)
 
@@ -157,8 +163,14 @@ class LitUnet2D(pl.LightningModule):
             batch_size=train_loader.batch_size,
             num_workers=train_loader.num_workers,
         )
+        
+        sample = dataset[0]
+        if "model_input" in sample:
+            subtomo_dim = sample["model_input"].shape[-1]
+        else:
+            subtomo_dim= sample["subtomo0_original"].shape[-1]
+
         # subtomo size has to be divisible by 2**num_downsample_layers due to U-Net architecture -> ensure this by padding
-        subtomo_dim = dataset[0]["model_input"].shape[-1]
         factor = 2 ** self.unet_params["num_downsample_layers"]
         padding = factor * math.ceil(subtomo_dim / factor) - subtomo_dim
         # also make larger missing wedge mask that is compatible with the padded subtomos
@@ -166,7 +178,15 @@ class LitUnet2D(pl.LightningModule):
         with torch.no_grad():
             for batch in tqdm.tqdm(loader, desc="Updating subtomo missing wedges"):
                 assert batch["rot_angle"].float().norm() == 0
-                subtomo_batch = batch["model_input"].to(self.device)
+
+                if "model_input" in batch:
+                    subtomo_batch= batch["model_input"].to(self.device)
+                else:
+                    subtomo_batch= apply_fourier_mask_to_tomo(
+                        batch["subtomo0_original"],
+                        batch["mw_mask"]
+                    ).to(self.device)
+
                 subtomo_batch = torch.nn.functional.pad(
                     subtomo_batch,
                     pad=(0, padding, 0, padding),
