@@ -312,9 +312,8 @@ if __name__ == "__main__":
     prepare_data(
     tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_even_frames.rec"],
     tomo1_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_odd_frames.rec"],
-    subtomo_size=96,
-    project_dir="testing",
+    subtomo_size=128,
+    project_dir="testing_for_Isonet2",
     overwrite=True,
-    subtomo_extraction_strides=[60,60],
     extract_larger_subtomos_for_rotating=False,
     )

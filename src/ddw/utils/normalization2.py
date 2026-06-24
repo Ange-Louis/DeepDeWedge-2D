@@ -6,6 +6,8 @@ import tqdm
 from src.ddw.prepare_data2 import prepare_data
 
 from src.ddw.utils.subtomo_dataset2 import SubtomoDataset
+from src.ddw.utils.fourier2 import apply_fourier_mask_to_tomo
+from src.ddw.utils.rotation2 import rotate_area
 
 
 def get_avg_model_input_mean_and_std(tomo_file, subtomo_size, subtomo_extraction_strides, standardize, mw_angle, batch_size, num_workers, batches=None, verbose=False):
@@ -61,8 +63,19 @@ def get_avg_model_input_mean_and_std_from_dataloader(dataloader, batches=None, v
         except StopIteration:
             iter_loader = iter(dataloader)
             batch = next(iter_loader)
-        means.append(batch["model_input"].mean(dim=(-1, -2)))
-        vars.append(batch["model_input"].var(dim=(-1, -2)))
+
+        if "model_input" in batch:
+            model_input = batch["model_input"]
+        else:
+            subtomo0_rotated = rotate_area(
+                batch["subtomo0_original"],
+                rot_angle= batch["rot_angle"],
+                output_shape= 2*batch["crop_subtomos_to_size"],
+            )
+
+            model_input = apply_fourier_mask_to_tomo(subtomo0_rotated, batch["mw_mask"])
+        means.append(model_input.mean(dim=(-1, -2)))
+        vars.append(model_input.var(dim=(-1, -2)))
     mean = torch.concat(means, 0).mean().cpu().item()
     std = torch.concat(vars, 0).mean().sqrt().cpu().item()
     return mean, std

@@ -54,8 +54,8 @@ class LitUnet2D(pl.LightningModule):
         mw_mask = batch["mw_mask"]
         rot_mw_mask = batch["rot_mw_mask"]
 
-        subtomo0_corrected_rotated = rotate_area(subtomo0_corrected, rot_angle= rot_angle, output_shape= 2*[self.unet_params["crop_subtomos_to_size"]])
-        subtomo1_corrected_rotated = rotate_area(subtomo1_corrected, rot_angle= rot_angle, output_shape= 2*[self.unet_params["crop_subtomos_to_size"]])
+        subtomo0_corrected_rotated = rotate_area(subtomo0_corrected, rot_angle= rot_angle, output_shape= 2*[batch["crop_subtomos_to_size"]])
+        subtomo1_corrected_rotated = rotate_area(subtomo1_corrected, rot_angle= rot_angle, output_shape= 2*[batch["crop_subtomos_to_size"]])
 
         model_input = apply_fourier_mask_to_tomo(subtomo0_corrected_rotated, rot_mw_mask)
 
