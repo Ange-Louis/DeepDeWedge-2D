@@ -313,7 +313,8 @@ if __name__ == "__main__":
     tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_even_frames.rec"],
     tomo1_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_odd_frames.rec"],
     subtomo_size=128,
-    project_dir="testing_for_Isonet2",
+    subtomo_extraction_strides=[80,80],
+    project_dir="testing_for_Isonet2_gpu1",
     overwrite=True,
     extract_larger_subtomos_for_rotating=False,
     )

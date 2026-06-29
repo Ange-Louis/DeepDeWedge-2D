@@ -296,16 +296,17 @@ def fit_model2(
 
 # Exemple d'utilisation :
 if __name__ == "__main__":
-    model = fit_model2(
-        unet_params_dict= {'chans': 64, 'num_downsample_layers': 3, 'drop_prob': 0.3},
-        adam_params_dict= {'lr': 4e-2},
-        num_epochs=200,
-        batch_size=32,
-        num_workers=8,
-        gpu= 1,
-        subtomo_size=128,
-        mw_angle=50,
-        project_dir="testing_for_Isonet2",
-        check_val_every_n_epochs=1,
-        save_model_every_n_epochs=float('inf'),
-    )
+        model = fit_model2(
+            unet_params_dict= {'chans': 64, 'num_downsample_layers': 3, 'drop_prob': 0.3},
+            adam_params_dict= {'lr': 1e-3},
+            num_epochs=200,
+            batch_size=16,
+            num_workers=8,
+            gpu= 1,
+            subtomo_size=128,
+            mw_angle=50,
+            project_dir="testing_for_Isonet2_gpu0",
+            check_val_every_n_epochs=1,
+            save_model_every_n_epochs=float('inf'),
+            update_subtomo_missing_wedges_every_n_epochs= float('inf'),
+        )

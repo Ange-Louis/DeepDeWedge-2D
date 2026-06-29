@@ -44,36 +44,62 @@ class LitUnet2D(pl.LightningModule):
         )  # unsqueeze to add channel dimension, squeeze to remove it
 
     def training_step(self, batch, batch_idx):
-        # STEP 1: Generate hybrid ubtomos (original outside MW + predicted inside MW) 
-        with torch.no_grad(): # No optimisation here, just inference
-            subtomo0_predicted = self(batch["subtomo0_original"])
-            subtomo1_predicted = self(batch["subtomo1_original"])
+        # STEP 1: Generate hybrid subtomos (original outside MW + predicted inside MW)
+        subtomo0_original = batch["subtomo0_original"]
+        subtomo1_original = batch["subtomo1_original"]
+        mw_mask = batch["mw_mask"]
 
-            var_orig = torch.var(batch["subtomo0_original"] - batch["subtomo1_original"], dim= [-1, -2], keepdim= True)
+
+        with torch.no_grad(): # No optimisation here, just inference
+            clean_inside_MW0 = apply_fourier_mask_to_tomo(subtomo0_original, mw_mask)
+            clean_inside_MW1 = apply_fourier_mask_to_tomo(subtomo1_original, mw_mask)
+
+            subtomo0_predicted = self(clean_inside_MW0)
+            subtomo1_predicted = self(clean_inside_MW1)
+
+            var_orig = torch.var(subtomo0_original - subtomo1_original, dim= [-1, -2], keepdim= True)
             var_pred = torch.var(subtomo0_predicted - subtomo1_predicted, dim= [-1, -2], keepdim= True)
 
-            var_noise = torch.clamp(var_orig - var_pred, min= 1e-6) / 2
-            
+            std_noise = torch.sqrt(torch.clamp(var_orig - var_pred, min= 1e-6) / 2)
+
+            noise0 = torch.randn_like(subtomo0_predicted) * std_noise
+            noise1 = torch.randn_like(subtomo1_predicted) * std_noise
+
+            subtomo0_prednoised = subtomo0_predicted + noise0
+            subtomo1_prednoised = subtomo1_predicted + noise1
+
+            hybrid_subtomo0 = clean_inside_MW0 + apply_fourier_mask_to_tomo(subtomo0_prednoised, 1 - mw_mask)
+            hybrid_subtomo1 = clean_inside_MW1 + apply_fourier_mask_to_tomo(subtomo1_prednoised, 1 - mw_mask)
 
         # STEP 2: Rotation + Mask
         rot_angle = batch["rot_angle"]
-        mw_mask = batch["mw_mask"]
         rot_mw_mask = batch["rot_mw_mask"]
 
-        subtomo0_corrected_rotated = rotate_area(subtomo0_corrected, rot_angle= rot_angle, output_shape= 2*[int(batch["crop_subtomos_to_size"][0].item())])
-        subtomo1_corrected_rotated = rotate_area(subtomo1_corrected, rot_angle= rot_angle, output_shape= 2*[int(batch["crop_subtomos_to_size"][0].item())])
+        hybrid_subtomo0_rotated = rotate_area(hybrid_subtomo0, rot_angle= rot_angle, output_shape= 2*[int(batch["crop_subtomos_to_size"][0].item())])
+        hybrid_subtomo1_rotated = rotate_area(hybrid_subtomo1, rot_angle= rot_angle, output_shape= 2*[int(batch["crop_subtomos_to_size"][0].item())])
 
-        model_input = apply_fourier_mask_to_tomo(subtomo0_corrected_rotated, rot_mw_mask)
+        model_input0 = apply_fourier_mask_to_tomo(hybrid_subtomo0_rotated, mw_mask)
+        model_input1 = apply_fourier_mask_to_tomo(hybrid_subtomo1_rotated, mw_mask)
 
         # STEP 3: Second correction + loss 
-        model_output = self(model_input)
-        loss = masked_loss(
-            model_output=model_output,
-            target=subtomo1_corrected_rotated,
+        model_output0 = self(model_input0)
+        model_output1 = self(model_input1)
+
+        loss0 = masked_loss(
+            model_output=model_output0,
+            target=hybrid_subtomo1_rotated,
             rot_mw_mask= rot_mw_mask,
             mw_mask= mw_mask,
             mw_weight= self.mw_weight,
         )
+        loss1 = masked_loss(
+            model_output=model_output1,
+            target=hybrid_subtomo0_rotated,
+            rot_mw_mask= rot_mw_mask,
+            mw_mask= mw_mask,
+            mw_weight= self.mw_weight,
+        )
+        loss= (loss0+loss1)/2
         self.log(
             "fitting_loss",
             loss,
@@ -85,14 +111,23 @@ class LitUnet2D(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        model_output = self(batch["model_input"])
-        loss = masked_loss(
-            model_output=model_output,
-            target=batch["model_target"],
+        model_output0 = self(batch["model_input0"])
+        model_output1 = self(batch["model_input1"])
+        loss0 = masked_loss(
+            model_output=model_output0,
+            target=batch["model_target1"],
             rot_mw_mask=batch["rot_mw_mask"],
             mw_mask=batch["mw_mask"],
             mw_weight= self.mw_weight,
         )
+        loss1 = masked_loss(
+            model_output=model_output1,
+            target=batch["model_target0"],
+            rot_mw_mask=batch["rot_mw_mask"],
+            mw_mask=batch["mw_mask"],
+            mw_weight= self.mw_weight,
+        )
+        loss= (loss0+loss1)/2
         self.log(
             "val_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True
         )

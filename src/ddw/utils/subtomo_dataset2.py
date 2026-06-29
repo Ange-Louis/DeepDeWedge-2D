@@ -139,10 +139,13 @@ class SubtomoDataset(Dataset):
                 rot_angle= rot_angle,
                 output_shape= 2*[self.crop_subtomos_to_size],
             )
-        model_input = apply_fourier_mask_to_tomo(subtomo0, mw_mask)
+        model_input0 = apply_fourier_mask_to_tomo(subtomo0, mw_mask)
+        model_input1 = apply_fourier_mask_to_tomo(subtomo1, mw_mask)
         item = {
-            "model_input": model_input,
-            "model_target": subtomo1,
+            "model_input0": model_input0,
+            "model_input1": model_input1,
+            "model_target0": subtomo1,
+            "model_target1": subtomo0,
             "rot_angle": rot_angle,
             "mw_mask": mw_mask,
             "rot_mw_mask": rot_mw_mask,
