@@ -90,7 +90,7 @@ class LitUnet2D(pl.LightningModule):
             opt = opts
         current_lr = opt.param_groups[0]['lr']
         self.log("learning_rate", current_lr, logger= True, on_step=False, on_epoch=True)
-    
+
         if (
             self.current_epoch + 1
         ) % self.update_subtomo_missing_wedges_every_n_epochs == 0:  # +1 because the epoch indexing starts at 0
@@ -99,12 +99,24 @@ class LitUnet2D(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), **self.adam_params)
-        # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.1)
-        return [optimizer]  # , [scheduler]
 
-    # def lr_scheduler_step(self, scheduler, optimizer_idx, metric) -> None:
-    #     if scheduler is not None:
-    #         scheduler.step()
+        max_lr = self.adam_params.get('lr', 1e-3)
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, 
+                                                        max_lr=max_lr, 
+                                                        total_steps=self.trainer.estimated_stepping_batches,
+                                                        pct_start=0.3,
+                                                        div_factor=25.0,
+                                                        final_div_factor=400
+                                                        )
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler" : scheduler,
+                # "monitor" : "val_loss",
+                "interval" : "step",
+                "frequency" : 1,
+            }
+        }
 
     def update_subtomo_missing_wedges(self):
         """
@@ -148,7 +160,7 @@ class LitUnet2D(pl.LightningModule):
                 mw_mask_batch = mw_mask.repeat((*subtomo_batch.shape[:-2], 1, 1)).to(subtomo_batch.device)
                 # forward pass
                 subtomo_batch_ref = self.forward(subtomo_batch)
-                # update missing wedges    
+                # update missing wedges  
                 subtomo_batch = apply_fourier_mask_to_tomo(
                     subtomo_batch, mw_mask_batch
                 ) + apply_fourier_mask_to_tomo(subtomo_batch_ref, 1 - mw_mask_batch)

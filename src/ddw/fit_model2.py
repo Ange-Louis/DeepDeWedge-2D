@@ -20,6 +20,7 @@ from src.ddw.utils.subtomo_dataset2 import SubtomoDataset
 from src.ddw.utils.unet2 import LitUnet2D
 
 
+
 loader = lambda yaml_config_file: load_function_args_from_yaml_config(
     function=fit_model2, yaml_config_file=yaml_config_file
 )
@@ -249,7 +250,6 @@ def fit_model2(
         find_unused_parameters=False,  # setting this to true gave a warning that it might slow things down
     ) if len(devices) > 1 else "auto"
 
-
     trainer = pl.Trainer(
         max_epochs=num_epochs,
         accelerator="gpu",
@@ -298,15 +298,15 @@ def fit_model2(
 if __name__ == "__main__":
     model = fit_model2(
         unet_params_dict= {'chans': 64, 'num_downsample_layers': 3, 'drop_prob': 0.3},
-        adam_params_dict= {'lr': 0.04},
-        num_epochs=1,
-        batch_size=16,
-        num_workers=10,
-        gpu=0,
+        adam_params_dict= {'lr': 4e-2},
+        num_epochs=400,
+        batch_size=32,
+        num_workers=8,
+        gpu= 0,
         subtomo_size=128,
         mw_angle=50,
         subtomo_dir="testing/subtomos",
         project_dir="testing2",
         check_val_every_n_epochs=1,
-        save_model_every_n_epochs=float('inf')
+        save_model_every_n_epochs=float('inf'),
     )
