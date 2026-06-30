@@ -50,7 +50,7 @@ def fit_model2(
     mw_angle: Annotated[
         float, typer.Option(help="Width of the missing wedge in degrees.")
     ],
-    gpu: Annotated[List[int], typer.Option(help="Which GPU(s) to use for model fitting. Example: gpu=0 uses the first GPU, gpu=[0,1] uses the first two GPUs.")],
+    gpu: Annotated[Union[int, List[int]], typer.Option(help="Which GPU(s) to use for model fitting. Example: gpu=0 uses the first GPU, gpu=[0,1] uses the first two GPUs.")],
     num_workers: Annotated[
         int,
         typer.Option(
@@ -249,6 +249,7 @@ def fit_model2(
         process_group_backend=distributed_backend, 
         find_unused_parameters=False,  # setting this to true gave a warning that it might slow things down
     ) if len(devices) > 1 else "auto"
+
     trainer = pl.Trainer(
         max_epochs=num_epochs,
         accelerator="gpu",
