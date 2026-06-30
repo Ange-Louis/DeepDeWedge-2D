@@ -407,7 +407,7 @@ if __name__ == "__main__":
     refine_tomogram(
         tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_even_frames.rec"],
         tomo1_files= ["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_odd_frames.rec"],
-        model_checkpoint_file= "testing_for_Isonet2_gpu0/logs/version_0/checkpoints/val_loss/epoch=183-val_loss=1.99025.ckpt",
+        model_checkpoint_file= "testing_for_Isonet2_gpu0/logs/version_1/checkpoints/fitting_loss/epoch=176-fitting_loss=1.98267.ckpt",
         subtomo_size=128,
         mw_angle=50,
         project_dir= "testing_for_Isonet2_gpu0",

@@ -115,21 +115,21 @@ class LitUnet2D(pl.LightningModule):
         model_output1 = self(batch["model_input1"])
         loss0 = masked_loss(
             model_output=model_output0,
-            target=batch["model_target1"],
+            target=batch["model_target0"],
             rot_mw_mask=batch["rot_mw_mask"],
             mw_mask=batch["mw_mask"],
             mw_weight= self.mw_weight,
         )
         loss1 = masked_loss(
             model_output=model_output1,
-            target=batch["model_target0"],
+            target=batch["model_target1"],
             rot_mw_mask=batch["rot_mw_mask"],
             mw_mask=batch["mw_mask"],
             mw_weight= self.mw_weight,
         )
         loss= (loss0+loss1)/2
         self.log(
-            "val_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True
+            "val_loss", loss, on_step=False, on_epoch=True, prog_bar=False, logger=True
         )
 
     # def on_before_zero_grad(self, optimizer) -> None:
