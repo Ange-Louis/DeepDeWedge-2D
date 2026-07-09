@@ -20,6 +20,8 @@ from src.ddw.utils.mrctools2 import load_data, save_mrc_data, load_2d_data
 from src.ddw.utils.normalization2 import get_avg_model_input_mean_and_std
 from src.ddw.utils.subtomos2 import extract_subtomos, reassemble_subtomos
 
+from src.ddw.prepare_data2 import prepare_data
+
 loader = lambda yaml_config_file: load_function_args_from_yaml_config(
     function=refine_tomogram, yaml_config_file=yaml_config_file
 )
@@ -145,6 +147,8 @@ def refine_tomogram(
         )
     if return_tomos:
         tomo_ref = []
+        tomo0_ref = []
+        tomo1_ref = []
 
     if subtomo_overlap is None:
         subtomo_overlap = int(math.ceil(subtomo_size / 3))
@@ -168,7 +172,7 @@ def refine_tomogram(
             print(f"Refining {k}th tomogram")
 
             if len(tomo_to_refine.shape) == 3:
-                refined = refine_3d(
+                refined, refined0, refined1 = refine_3d(
                     tomo_to_refine= tomo_to_refine,
                     t0_file=t0_file,
                     t0_name=t0_name,
@@ -201,12 +205,21 @@ def refine_tomogram(
 
             if return_tomos:
                 tomo_ref.append(refined)
+                tomo0_ref.append(refined0)
+                tomo1_ref.append(refined1)
                 
             if output_dir is not None:
-                basename = f"{t0_name}+{t1_name}"
+                basename= f"MEAN{t0_name}+{t1_name}"
+                basename0 = f"EVN{t0_name}"
+                basename1 = f"ODD{t1_name}"
                 outfile = f"{output_dir}/{basename}_refined.mrc"
+                outfile0 = f"{output_dir}/{basename0}_refined.mrc"
+                outfile1 = f"{output_dir}/{basename1}_refined.mrc"
+
                 print(f"Saving refined tomogram to {outfile}")
-                save_mrc_data(refined.cpu(), f"{outfile}", save=True)
+                save_mrc_data(refined0.cpu(), f"{outfile}", save=True)
+                save_mrc_data(refined0.cpu(), f"{outfile0}", save=True)
+                save_mrc_data(refined1.cpu(), f"{outfile1}", save=True)
     if return_tomos:
         return tomo_ref
 
@@ -303,13 +316,14 @@ def refine_3d(
     refined = torch.empty(tomo_to_refine.shape[0], 0, tomo_to_refine.shape[2])
 
 
+
     for k, (t0_tensorfile, t1_tomotensorfile) in enumerate(zip(t0_tensorfiles, t1_tensorfiles)):
         t0 = load_data(t0_tensorfile).float()
         t1 = load_data(t1_tomotensorfile).float()
 
         print(t0_tensorfile.stem)
 
-        t_ref = _refine_single_tomogram(
+        t0_ref = _refine_single_tomogram(
             tomo=t0,
             lightning_model=lightning_model,
             subtomo_size=subtomo_size,
@@ -321,7 +335,7 @@ def refine_3d(
             batch_size=batch_size,
             pbar_desc=f"EVN: {t0_name} slice {k}",
         )
-        t_ref += _refine_single_tomogram(
+        t1_ref = _refine_single_tomogram(
             tomo=t1,
             lightning_model=lightning_model,
             subtomo_size=subtomo_size,
@@ -333,11 +347,16 @@ def refine_3d(
             batch_size=batch_size,
             pbar_desc=f"ODD: {t1_name} slice {k}",
         )
-        t_ref /= 2
+        t_ref = (t0_ref.clone() + t1_ref.clone()) /2
 
+        t0_ref = t0_ref.unsqueeze(1)
+        t1_ref = t1_ref.unsqueeze(1)
         t_ref = t_ref.unsqueeze(1)
+
+        refined0 = torch.cat([refined, t0_ref], dim=1)
+        refined1 = torch.cat([refined, t1_ref], dim=1)
         refined = torch.cat([refined, t_ref], dim=1)
-    return refined
+    return refined, refined0, refined1
 
 
 def refine_2d(
@@ -404,13 +423,21 @@ def refine_2d(
 
 # Exemple d'utilisation
 if __name__ == "__main__":
+    # prepare_data(
+    #     tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_even_frames.rec"],
+    #     tomo1_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_odd_frames.rec"],
+    #     subtomo_size=128,
+    #     project_dir="MW-weight comparaison",
+    #     overwrite=True,
+    #     extract_larger_subtomos_for_rotating=False,
+    # )
     refine_tomogram(
         tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_even_frames.rec"],
         tomo1_files= ["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_odd_frames.rec"],
-        model_checkpoint_file= "testing2/logs/version_0/checkpoints/val_loss/epoch=362-val_loss=1.94520.ckpt",
+        model_checkpoint_file= "testing/logs/WithRotationWithoutMWMask/checkpoints/val_loss/epoch=99-val_loss=2.18607.ckpt",
         subtomo_size=128,
         mw_angle=50,
-        project_dir= "testing",
+        project_dir= "MW-weight comparaison",
         num_workers=0,
         recompute_normalization=False,
         batch_size= 10,
