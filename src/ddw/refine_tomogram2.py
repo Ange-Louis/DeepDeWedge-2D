@@ -419,27 +419,3 @@ def refine_2d(
     )
     t_ref /=2
     return t_ref
-
-
-# Exemple d'utilisation
-if __name__ == "__main__":
-    # prepare_data(
-    #     tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_even_frames.rec"],
-    #     tomo1_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_odd_frames.rec"],
-    #     subtomo_size=128,
-    #     project_dir="MW-weight comparaison",
-    #     overwrite=True,
-    #     extract_larger_subtomos_for_rotating=False,
-    # )
-    refine_tomogram(
-        tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_even_frames.rec"],
-        tomo1_files= ["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_odd_frames.rec"],
-        model_checkpoint_file= "testing/logs/WithRotationWithoutMWMask/checkpoints/val_loss/epoch=99-val_loss=2.18607.ckpt",
-        subtomo_size=128,
-        mw_angle=50,
-        project_dir= "MW-weight comparaison",
-        num_workers=0,
-        recompute_normalization=False,
-        batch_size= 10,
-        gpu= [0,1]
-    )

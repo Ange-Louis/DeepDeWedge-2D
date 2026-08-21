@@ -6,3 +6,6 @@ testing*/
 !.pixi/config.toml
 smiley.py
 __pycache__/
+braintutorial_ddw2*/
+src/ddw/__pycache__/
+*tutorial_data/

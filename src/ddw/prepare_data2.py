@@ -14,7 +14,7 @@ from typing_extensions import Annotated
 from src.ddw.utils.load_function_args_from_yaml_config import (
     load_function_args_from_yaml_config,
 )
-from src.ddw.utils.mrctools2 import load_data, collect_data
+from src.ddw.utils.mrctools2 import load_data, collect_data, load_2d_data
 from src.ddw.utils.subtomos2 import extract_subtomos
 
 loader = lambda yaml_config_file: load_function_args_from_yaml_config(
@@ -136,22 +136,19 @@ def prepare_data(
             raise ValueError(
                 "min_nonzero_mask_fraction_in_subtomo must be provided if mask_files are provided"
             )
-        
+            
     if verbose:
         print(f"Starting subtomogram extraction from {len(tomo0_files)} tomogram(s).")
-
     if data_dir is None:
         if project_dir is not None:
             data_dir = f"{project_dir}/tomos"
         else:
             raise ValueError("data_dir must be provided if project_dir is not provided")
-
     if subtomo_dir is None:
         if project_dir is not None:
             subtomo_dir = f"{project_dir}/subtomos"
         else:
             raise ValueError("subtomo_dir must be provided if project_dir is not provided")
-
     for d in [data_dir, subtomo_dir]:
         if os.path.exists(d):
             if overwrite:
@@ -163,12 +160,9 @@ def prepare_data(
                     f"Directory '{d}' already exists. Set 'overwrite=True' to remove it."
                 )
         os.makedirs(d, exist_ok=True)
-
     total_fitting_counter, total_val_counter = 0, 0
-
     for num_tomos, (tomo0_file, tomo1_file, mask_file) in enumerate(zip(tomo0_files, tomo1_files, mask_files)):
         fitting_counter, val_counter = 0, 0
- 
         tomo0_name = Path(tomo0_file).stem
         tomo1_name = Path(tomo1_file).stem
         
@@ -180,48 +174,64 @@ def prepare_data(
             tomo0_name=tomo0_name,
             tomo1_name=tomo1_name
         )
-
         if mask_file is not None:
             mask_name = Path(mask_file).stem
             mask_dir = Path(data_dir) / "masks" / mask_name
             os.makedirs(mask_dir, exist_ok=True)
-
+            
         # Collect data from tomogram files
         if verbose:
             print(f"Processing tomogram pairs: '{tomo0_name}' & '{tomo1_name}'")
+            
+        # Load the full tomograms
+        tomo0 = load_2d_data(tomo0_file).float()
+        tomo1 = load_2d_data(tomo1_file).float()
 
-        collect_data(image_file=tomo0_file, output_dir=tomo0_dir)
-        collect_data(image_file=tomo1_file, output_dir=tomo1_dir)
+        if standardize_full_tomos:
+            print(
+                f"Standardizing tomograms '{tomo0_name}' & '{tomo1_name}' before extracting sub-tomograms."
+            )
+            moyenne0 = tomo0.mean()
+            tomo0 -= moyenne0
+            sigma0 = tomo0.std()
+            tomo0 /= (sigma0 + 1e-8)
+
+            moyenne1 = tomo1.mean()
+            tomo1 -= moyenne1
+            sigma1 = tomo1.std()
+            tomo1 /= (sigma1 + 1e-8)
+        else:
+            std = tomo0.std()
+            if std < 1e-3:
+                print(f"\n                        WARNING: Standard deviation of '{tomo0_name}' is low ({std}), which may lead to issues during model fitting!\n                        \nConsider setting 'standardize_full_tomos=True'.\n                        \nIf you do so, you must also set 'standardize_full_tomos=True' for 'ddw refine-tomogram'.\n                ")
+
+        # Save slices (2D) if tomogram is 3D
+        def save_slices(tomo_tensor, output_dir):
+            if tomo_tensor.ndim >= 3:
+                y_axis = -2
+                for y in range(tomo_tensor.shape[y_axis]):
+                    slice_data = torch.select(tomo_tensor, dim=y_axis, index=y)
+                    torch.save(slice_data.clone(), f"{output_dir}/{y}.pt")
+            else:
+                torch.save(tomo_tensor.clone(), f"{output_dir}/0.pt")
+
+        save_slices(tomo0, tomo0_dir)
+        save_slices(tomo1, tomo1_dir)
+
+        # Free memory by deleting the full tomograms
+        del tomo0
+        del tomo1
 
         if mask_file is not None:
             collect_data(image_file=mask_file, output_dir=mask_dir)
-    
+             
         # actual subtomogram extraction
         tomo0_tensorfiles = sorted(Path(tomo0_dir).glob("*.pt"), key=lambda x: int(x.stem))
         tomo1_tensorfiles = sorted(Path(tomo1_dir).glob("*.pt"), key=lambda x: int(x.stem))
-
         for (tomo0_tensorfile, tomo1_tensorfile) in zip(tomo0_tensorfiles, tomo1_tensorfiles):
             tomo0 = load_data(tomo0_tensorfile).float()
             tomo1 = load_data(tomo1_tensorfile).float()
-            
-            if standardize_full_tomos:
-                print(
-                    f"Standardizing tomogram '{Path(tomo0_tensorfile).stem}' & '{Path(tomo1_tensorfile).stem}' before extracting sub-tomograms."
-                )
-                tomo0 -= tomo0.mean()
-                tomo1 -= tomo1.mean()
-                tomo0 /= tomo0.std()
-                tomo1 /= tomo1.std()
-            else:
-                std = tomo0.std()
-                if std < 1e-3:
-                    print(f"\
-                        WARNING: Standard deviation of '{Path(tomo0_tensorfile).stem}' is low ({std}), which may lead to issues during model fitting!\
-                        \nConsider setting 'standardize_full_tomos=True'.\
-                        \nIf you do so, you must also set 'standardize_full_tomos=True' for 'ddw refine-tomogram'.\
-                ")
-          
-  
+                        
             subtomos0, start_coords = extract_subtomos(
                 tomo=tomo0,
                 subtomo_size=subtomo_size,
@@ -236,7 +246,6 @@ def prepare_data(
                 enlarge_subtomos_for_rotating=extract_larger_subtomos_for_rotating,
                 pad_before_subtomo_extraction=pad_before_subtomo_extraction,
             )
-
             for idx in range(len(subtomos0)):
                 torch.save(
                     subtomos0[idx].clone(), f"{fitting_subtomo0_dir}/{fitting_counter}.pt"
@@ -245,10 +254,7 @@ def prepare_data(
                     subtomos1[idx].clone(), f"{fitting_subtomo1_dir}/{fitting_counter}.pt"
                 )
                 fitting_counter += 1
-
-
         fitting_subtomo0_tensorfiles = sorted(Path(fitting_subtomo0_dir).glob("*.pt"), key=lambda x: int(x.stem))
-
         num_val_subtomos = math.ceil(len(fitting_subtomo0_tensorfiles) * val_fraction)
         val_ids = (
             random.Random(seed).sample(range(len(fitting_subtomo0_tensorfiles)), num_val_subtomos)
@@ -258,14 +264,10 @@ def prepare_data(
         for idx in sorted(val_ids):
             shutil.move(f"{fitting_subtomo0_dir}/{idx}.pt", f"{val_subtomo0_dir}/{idx}.pt")
             shutil.move(f"{fitting_subtomo1_dir}/{idx}.pt", f"{val_subtomo1_dir}/{idx}.pt")
-
             val_counter += 1
-
         fitting_counter -= val_counter
-
         total_fitting_counter += fitting_counter
         total_val_counter += val_counter
-
         if verbose:
             print(f"Done with {num_tomos+1}th sub-tomogram extraction.")
             print(
@@ -274,7 +276,6 @@ def prepare_data(
             print(
                 f"Saved {val_counter} sub-tomograms for validation from {num_tomos} tomogram."
             )
-
     if verbose:
         print(f"Done with all sub-tomogram extraction.")
         print(
@@ -283,6 +284,7 @@ def prepare_data(
         print(
             f"Saved a total of {total_val_counter} sub-tomograms for validation."
         )
+
 
 def setup_tomo_dir(data_dir, subtomo_dir, tomo0_name, tomo1_name):
     """
@@ -297,7 +299,6 @@ def setup_tomo_dir(data_dir, subtomo_dir, tomo0_name, tomo1_name):
     
     val_subtomo0_dir = f"{subtomo_dir}/val_subtomos/subtomo0/{tomo0_name}"
     val_subtomo1_dir = f"{subtomo_dir}/val_subtomos/subtomo1/{tomo1_name}"
-
     os.makedirs(tomo0_dir, exist_ok=True)
     os.makedirs(tomo1_dir, exist_ok=True)
     os.makedirs(fitting_subtomo0_dir, exist_ok=True)
@@ -307,14 +308,3 @@ def setup_tomo_dir(data_dir, subtomo_dir, tomo0_name, tomo1_name):
     
     return (tomo0_dir, fitting_subtomo0_dir, val_subtomo0_dir,
             tomo1_dir, fitting_subtomo1_dir, val_subtomo1_dir)
-
-if __name__ == "__main__":
-    prepare_data(
-    tomo0_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_even_frames.rec"],
-    tomo1_files=["/home/nathan/Desktop/Ange-Louis/Dataset/DDW_tutorial/tomo_odd_frames.rec"],
-    subtomo_size=128,
-    project_dir="testing",
-    overwrite=True,
-    subtomo_extraction_strides=[80,80],
-    extract_larger_subtomos_for_rotating=False,
-    )

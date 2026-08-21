@@ -50,7 +50,7 @@ def fit_model2(
     mw_angle: Annotated[
         float, typer.Option(help="Width of the missing wedge in degrees.")
     ],
-    gpu: Annotated[Union[int, List[int]], typer.Option(help="Which GPU(s) to use for model fitting. Example: gpu=0 uses the first GPU, gpu=[0,1] uses the first two GPUs.")],
+    gpu: Annotated[List[int], typer.Option(help="Which GPU(s) to use for model fitting. Example: gpu=0 uses the first GPU, gpu=[0,1] uses the first two GPUs.")],
     num_workers: Annotated[
         int,
         typer.Option(
@@ -291,22 +291,4 @@ def fit_model2(
         model=lit_unet,
         train_dataloaders=fitting_dataloader,
         val_dataloaders=val_dataloader,
-    )
-
-
-# Exemple d'utilisation :
-if __name__ == "__main__":
-    model = fit_model2(
-        unet_params_dict= {'chans': 64, 'num_downsample_layers': 3, 'drop_prob': 0.3},
-        adam_params_dict= {'lr': 4e-2},
-        num_epochs=400,
-        batch_size=32,
-        num_workers=8,
-        gpu= 0,
-        subtomo_size=128,
-        mw_angle=50,
-        subtomo_dir="testing/subtomos",
-        project_dir="testing2",
-        check_val_every_n_epochs=1,
-        save_model_every_n_epochs=float('inf'),
     )
