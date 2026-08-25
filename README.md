@@ -2,7 +2,7 @@
 
 > **Optimisation des reconstructions tomographiques par IA : évaluation d'une approche 2D pour réduire la complexité calculatoire**
 
-Ce projet est une implémentation 2D inspirée de [DeepDeWedge](https://github.com/MLI-lab/DeepDeWedge.git), développé dans le cadre d'un stage de recherche. L'objectif principal est d'optimiser les reconstructions tomographiques en utilisant des méthodes d'apprentissage profond pour traiter le problème du *missing wedge* (coin manquant) tout en réduisant significativement la complexité calculatoire par rapport aux approches 3D.
+Ce projet est une implémentation 2D inspirée de [DeepDeWedge](https://github.com/MLI-lab/DeepDeWedge.git), développé dans le cadre d'un stage de recherche. L'objectif principal est d'optimiser les reconstructions tomographiques en utilisant des méthodes d'apprentissage profond pour traiter simultanément le problème du bruit et du *missing wedge* tout en réduisant significativement la complexité calculatoire par rapport aux approches 3D.
 
 ## À propos
 
@@ -47,7 +47,7 @@ C'est tout ! L'environnement virtuel `.venv` est créé automatiquement avec tou
 
 ---
 
-## 🚀 Vérification et utilisation
+## Vérification et utilisation
 
 ### Activer l'environnement
 
