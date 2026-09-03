@@ -217,7 +217,7 @@ def refine_tomogram(
                 outfile1 = f"{output_dir}/{basename1}_refined.mrc"
 
                 print(f"Saving refined tomogram to {outfile}")
-                save_mrc_data(refined0.cpu(), f"{outfile}", save=True)
+                save_mrc_data(refined.cpu(), f"{outfile}", save=True)
                 save_mrc_data(refined0.cpu(), f"{outfile0}", save=True)
                 save_mrc_data(refined1.cpu(), f"{outfile1}", save=True)
     if return_tomos:
@@ -353,8 +353,8 @@ def refine_3d(
         t1_ref = t1_ref.unsqueeze(1)
         t_ref = t_ref.unsqueeze(1)
 
-        refined0 = torch.cat([refined, t0_ref], dim=1)
-        refined1 = torch.cat([refined, t1_ref], dim=1)
+        refined0 = torch.cat([refined0, t0_ref], dim=1)
+        refined1 = torch.cat([refined1, t1_ref], dim=1)
         refined = torch.cat([refined, t_ref], dim=1)
     return refined, refined0, refined1
 
