@@ -12,16 +12,17 @@ def get_avg_model_input_mean_and_std(tomo_file, subtomo_size, subtomo_extraction
     """
     Computes the average mean and standard deviation of model-input-type sub-tomograms (with two missing wedges). These values are used to normalize sub-tomograms during model fitting and to normalize full tomograms in the final refinement step. 
     """
-    with tempfile.TemporaryDirectory() as subtomo_dir:
+    with tempfile.TemporaryDirectory() as subtomo_dir, tempfile.TemporaryDirectory() as data_dir:
         prepare_data(
             tomo0_files=[tomo_file],
             tomo1_files=[tomo_file],
             mask_files=[],
             subtomo_size=subtomo_size,
             extract_larger_subtomos_for_rotating=True,
-            subtomo_extraction_strides=subtomo_extraction_strides,  
+            subtomo_extraction_strides=subtomo_extraction_strides,
             val_fraction=0.0,
             subtomo_dir=subtomo_dir,
+            data_dir=data_dir,   # <- ajouté
             standardize_full_tomos=standardize,
             overwrite=True,
             verbose=False,
