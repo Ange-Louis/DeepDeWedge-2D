@@ -314,6 +314,8 @@ def refine_3d(
     t1_tensorfiles = sorted(Path(t1_dir).glob("*.pt"), key=lambda x: int(x.stem))
 
     refined = torch.empty(tomo_to_refine.shape[0], 0, tomo_to_refine.shape[2])
+    refined0 = torch.empty(tomo_to_refine.shape[0], 0, tomo_to_refine.shape[2])
+    refined1 = torch.empty(tomo_to_refine.shape[0], 0, tomo_to_refine.shape[2])
 
 
 
@@ -353,9 +355,9 @@ def refine_3d(
         t1_ref = t1_ref.unsqueeze(1)
         t_ref = t_ref.unsqueeze(1)
 
+        refined = torch.cat([refined, t_ref], dim=1)
         refined0 = torch.cat([refined0, t0_ref], dim=1)
         refined1 = torch.cat([refined1, t1_ref], dim=1)
-        refined = torch.cat([refined, t_ref], dim=1)
     return refined, refined0, refined1
 
 
